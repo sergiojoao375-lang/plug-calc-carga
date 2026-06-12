@@ -42,6 +42,7 @@ export default function CalcStudio() {
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
   const [showPanelMgr, setShowPanelMgr] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
+  const [showConduit, setShowConduit] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>();
 
   useEffect(() => { setState(loadState()); }, []);
