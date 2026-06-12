@@ -256,7 +256,7 @@ export default function CalcStudio() {
                   </select>
                   <select value={panel.feederSection} onChange={e => updatePanel({ feederSection: +e.target.value })}
                     className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                    {SECTIONS.map(s => <option key={s} value={s}>{s} mm²</option>)}
+                    {FEEDER_SECTIONS.map(s => <option key={s} value={s}>{s} mm²</option>)}
                   </select>
                   <input type="number" step="0.1" value={panel.feederLength} onChange={e => updatePanel({ feederLength: +e.target.value || 0 })}
                     className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" placeholder="L (m)" />
@@ -265,7 +265,13 @@ export default function CalcStudio() {
                     <option value="Mono">Mono</option><option value="Tri">Trifásico</option>
                   </select>
                 </div>
-                {ctx && <div className="text-[10px] text-muted-foreground">ΔU feeder: <span className="text-[color:var(--brand-green)] font-semibold">{ctx.feederDeltaU.toFixed(2)}%</span></div>}
+                {ctx && (
+                  <div className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${statusColors(feederStatus).chip}`}>
+                    ΔU feeder: {ctx.feederDeltaU.toFixed(2)}%
+                    {" · "}
+                    {feederStatus === "ok" ? "OK" : feederStatus === "warn" ? "Quase a exceder" : "CRÍTICO"}
+                  </div>
+                )}
               </div>
 
               {/* Quadro atual */}
