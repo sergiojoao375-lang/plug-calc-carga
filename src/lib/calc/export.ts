@@ -302,7 +302,7 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
   doc.save("PLUGTECH_Diagrama_Cascata.pdf");
 }
 
-
+export function exportCSV(panel: Panel) {
   const sep = ";";
   const ctx: FeederContext = {
     iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
