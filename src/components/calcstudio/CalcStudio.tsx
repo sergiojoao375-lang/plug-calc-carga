@@ -3,7 +3,7 @@ import { LogoST } from "./Logo";
 import {
   type Circuit, type Material, type Phase, type InstallScenario, type CircuitType,
   computeCircuit, feederDeltaU, phaseImbalance, balancePhases, pickMainDevice,
-  SECTIONS, FEEDER_SECTIONS, STD_BREAKERS, type FeederContext,
+  FEEDER_SECTIONS, type FeederContext,
 } from "@/lib/calc/engine";
 import { loadState, saveState, type AppState, type Panel } from "@/lib/calc/storage";
 import { exportCSV, exportPDF, exportCascadePDF } from "@/lib/calc/export";
