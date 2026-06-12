@@ -215,7 +215,94 @@ function drawBlockDiagram(doc: jsPDF, panel: Panel) {
   });
 }
 
-export function exportCSV(panel: Panel) {
+// ===== Diagrama geral em cascata de TODOS os quadros =====
+export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: string }) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  if (!panels.length) return;
+
+  header(doc, "Diagrama Geral em Cascata", opts?.logoDataUrl);
+
+  const w = doc.internal.pageSize.getWidth();
+  const h = doc.internal.pageSize.getHeight();
+
+  // Ordenar quadros: origens externas (PT/QGE) primeiro, depois por dependência simples
+  const ordered = [...panels].sort((a, b) => {
+    const aRoot = !panels.some(p => p.name === a.origin) ? 0 : 1;
+    const bRoot = !panels.some(p => p.name === b.origin) ? 0 : 1;
+    return aRoot - bRoot;
+  });
+
+  let y = 26;
+  const boxH = 30;
+  const gapY = 14;
+  const leftX = 16;
+  const boxW = 110;
+
+  ordered.forEach((panel, idx) => {
+    if (y + boxH + gapY > h - 14) {
+      addFooter(doc);
+      doc.addPage("a4", "landscape");
+      header(doc, "Diagrama Geral em Cascata (cont.)", opts?.logoDataUrl);
+      y = 26;
+    }
+
+    // Caixa do quadro
+    doc.setDrawColor(20, 80, 60);
+    doc.setLineWidth(0.5);
+    doc.setFillColor(idx === 0 ? 235 : 220, idx === 0 ? 250 : 240, idx === 0 ? 240 : 255);
+    doc.rect(leftX, y, boxW, boxH, "FD");
+    doc.setTextColor(20);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text(panel.name, leftX + 4, y + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text(`Origem: ${panel.origin}`, leftX + 4, y + 14);
+    doc.text(`Alim.: ${panel.phase} ${panel.voltageMono}/${panel.voltageTri}V · Icc ${panel.iccOriginKA}kA`, leftX + 4, y + 19);
+
+    // Corte geral do quadro com capacidade
+    const totalP = panel.circuits.reduce((a, c) => a + c.power, 0);
+    const ibTot = panel.phase === "Tri"
+      ? totalP / (Math.sqrt(3) * panel.voltageTri * (panel.cosphi || 0.95))
+      : totalP / (panel.voltageMono * (panel.cosphi || 0.95));
+    const mainRating = pickMainDevice(ibTot * 1.25);
+    doc.text(`Corte geral: ${ibTot * 1.25 > 100 ? "Fusíveis gG" : "Interruptor"} ${mainRating}A`, leftX + 4, y + 24);
+    doc.text(`Interligação: ${panel.feederMaterial} ${panel.feederSection}mm² · L=${panel.feederLength}m`, leftX + 4, y + 28);
+
+    // Conector da linha de interligação
+    doc.setDrawColor(120);
+    doc.line(leftX + boxW, y + boxH / 2, leftX + boxW + 8, y + boxH / 2);
+
+    // Tabela compacta de circuitos do quadro ao lado
+    const ctx: FeederContext = {
+      iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
+      feederSection: panel.feederSection, feederLength: panel.feederLength,
+      feederDeltaU: 0, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+    };
+    const rows = panel.circuits.map((c, i) => {
+      const r = computeCircuit(c, ctx);
+      return [String(i + 1), c.name, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
+        `${c.power}W`, `${r.in}A ${r.curve}`, `${r.section}mm²`, `${c.length}m`];
+    });
+    autoTable(doc, {
+      startY: y,
+      margin: { left: leftX + boxW + 10, right: 10 },
+      head: [["#", "Circuito", "Fase", "P", "Proteção", "Secção", "L"]],
+      body: rows.length ? rows : [["—", "Sem circuitos", "", "", "", "", ""]],
+      styles: { fontSize: 6.5, cellPadding: 0.8, overflow: "linebreak" },
+      headStyles: { fillColor: [30, 100, 60], textColor: 255, fontSize: 6.8 },
+      theme: "grid",
+    });
+    // @ts-ignore
+    const tableEnd = (doc as any).lastAutoTable.finalY;
+    y = Math.max(y + boxH, tableEnd) + gapY;
+  });
+
+  addFooter(doc);
+  doc.save("PLUGTECH_Diagrama_Cascata.pdf");
+}
+
+
   const sep = ";";
   const ctx: FeederContext = {
     iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
