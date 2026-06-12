@@ -35,6 +35,8 @@ export interface Circuit {
 }
 
 export const STD_BREAKERS = [6, 10, 16, 20, 25, 32, 40, 50, 63];
+// Calibres alargados para Quadro Geral (QGE)
+export const STD_BREAKERS_QGE = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630];
 
 // Tabela simplificada Iz (A) por secção (mm²) Cu — valores conservadores médios
 const IZ_CU: Record<number, Partial<Record<InstallScenario, number>>> = {
@@ -96,11 +98,11 @@ export interface CalcResult {
   warnings: string[];
 }
 
-export function pickBreaker(ib: number, maxIz: number): number {
-  for (const b of STD_BREAKERS) {
+export function pickBreaker(ib: number, maxIz: number, breakers: number[] = STD_BREAKERS): number {
+  for (const b of breakers) {
     if (b >= ib && b <= maxIz) return b;
   }
-  return STD_BREAKERS[STD_BREAKERS.length - 1];
+  return breakers[breakers.length - 1];
 }
 
 export function suggestCurve(type: CircuitType): "B" | "C" | "D" {
@@ -116,6 +118,7 @@ export interface FeederContext {
   feederDeltaU: number;    // % já calculado para o quadro
   voltageMono: number;     // 230
   voltageTri: number;      // 400
+  isQGE?: boolean;         // quadro geral: calibres e secções alargados
 }
 
 export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
@@ -128,11 +131,14 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
 
   // Secção mínima por tipo
   const minSec = c.type === "Iluminacao" ? 1.5 : 2.5;
+  // Em QGE permite secções alargadas (até 400mm²) e calibres maiores
+  const sectionList = ctx.isQGE ? FEEDER_SECTIONS : SECTIONS;
+  const breakerList = ctx.isQGE ? STD_BREAKERS_QGE : STD_BREAKERS;
   // Escolher menor secção que: Iz >= 1.25*Ib e ΔU acumulado <= 4%
   let chosen = minSec;
   let iz = izFor(chosen, c.scenario, "Cu");
   let deltaU = 0;
-  for (const sec of SECTIONS) {
+  for (const sec of sectionList) {
     if (sec < minSec) continue;
     const izTry = izFor(sec, c.scenario, "Cu");
     const dU = deltaUPercent(c, sec, "Cu", ctx);
@@ -142,7 +148,7 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
     chosen = sec; iz = izTry; deltaU = dU;
   }
 
-  const inBreaker = c.inBreaker ?? pickBreaker(ib, iz);
+  const inBreaker = c.inBreaker ?? pickBreaker(ib, iz, breakerList);
   const curve = c.curve ?? suggestCurve(c.type);
 
   if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A).`);
@@ -194,9 +200,13 @@ export function feederDeltaU(params: {
 }
 
 // Equilíbrio de fases automático (greedy: maior carga -> fase com menor soma)
+// As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada).
 export function balancePhases(circuits: Circuit[]): Circuit[] {
   const monos = circuits.filter(c => c.phase === "Mono").sort((a, b) => b.power - a.power);
-  const sums = { L1: 0, L2: 0, L3: 0 } as Record<"L1"|"L2"|"L3", number>;
+  const triPerPhase = circuits
+    .filter(c => c.phase === "Tri")
+    .reduce((a, c) => a + c.power / 3, 0);
+  const sums = { L1: triPerPhase, L2: triPerPhase, L3: triPerPhase } as Record<"L1"|"L2"|"L3", number>;
   const updated = [...circuits];
   for (const c of monos) {
     const phase = (Object.keys(sums) as Array<"L1"|"L2"|"L3">).reduce((a, b) => sums[a] <= sums[b] ? a : b);
@@ -209,6 +219,12 @@ export function balancePhases(circuits: Circuit[]): Circuit[] {
 
 export function phaseImbalance(circuits: Circuit[]): { L1: number; L2: number; L3: number; pct: number } {
   const s = { L1: 0, L2: 0, L3: 0 };
+  // Cargas trifásicas distribuídas igualmente pelas 3 fases
+  circuits.filter(c => c.phase === "Tri").forEach(c => {
+    const per = c.power / 3;
+    s.L1 += per; s.L2 += per; s.L3 += per;
+  });
+  // Cargas monofásicas na fase atribuída
   circuits.filter(c => c.phase === "Mono").forEach(c => {
     if (c.phaseAssign) s[c.phaseAssign] += c.power;
   });

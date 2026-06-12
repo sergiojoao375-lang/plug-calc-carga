@@ -146,6 +146,7 @@ export default function CalcStudio() {
       iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
       feederSection: panel.feederSection, feederLength: panel.feederLength,
       feederDeltaU: fdU, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+      isQGE: panel.panelKind === "QGE",
     };
   }, [panel]);
 
@@ -206,6 +207,8 @@ export default function CalcStudio() {
             <button onClick={createNewPanel} className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">+ Novo Quadro</button>
             <button onClick={deletePanel} className="rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10">Eliminar</button>
             <button onClick={() => setShowPanelMgr(s => !s)} title="Configuração do quadro" className="rounded-md border border-border px-2 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">⚙</button>
+            <button onClick={doBalance} title="Distribuir cargas igualmente pelas fases" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">⚡ Equilíbrio Fases</button>
+            <button onClick={() => setShowConduit(true)} title="Calculadora de secção de tubagem" className="rounded-md border border-[color:var(--brand-green)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-green)] hover:bg-[color:var(--brand-green)]/10">Tubagem</button>
             <button onClick={() => exportCSV(panel)} className="rounded-md border border-[color:var(--brand-blue)]/50 px-3 py-1.5 text-sm hover:bg-[color:var(--brand-blue)]/10">CSV</button>
             <button onClick={() => exportPDF(state.panels, panel.id, { logoDataUrl })} className="rounded-md bg-[color:var(--brand-blue)] px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:brightness-110">PDF</button>
             <button onClick={() => exportCascadePDF(state.panels, { logoDataUrl })} title="Diagrama geral em cascata de todos os quadros" className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">PDF Cascata</button>
@@ -279,11 +282,20 @@ export default function CalcStudio() {
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Quadro Atual</div>
                 <input value={panel.name} onChange={e => updatePanel({ name: e.target.value })}
                   className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm font-semibold" />
-                <label className="text-xs">Cos φ global
-                  <input type="number" step="0.01" min="0.1" max="1" value={panel.cosphi}
-                    onChange={e => updatePanel({ cosphi: +e.target.value || 0.95 })}
-                    className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
-                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <label>Cos φ global
+                    <input type="number" step="0.01" min="0.1" max="1" value={panel.cosphi}
+                      onChange={e => updatePanel({ cosphi: +e.target.value || 0.95 })}
+                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
+                  </label>
+                  <label>Tipo de Quadro
+                    <select value={panel.panelKind ?? "QE"} onChange={e => updatePanel({ panelKind: e.target.value as "QE" | "QGE" })}
+                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
+                      <option value="QE">Distribuição (Q.E.)</option>
+                      <option value="QGE">Quadro Geral (QGE)</option>
+                    </select>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -456,9 +468,9 @@ export default function CalcStudio() {
         {imb && (
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
             <span className="text-muted-foreground">Fases:</span>
-            <span>L1 <b>{imb.L1}W</b></span>
-            <span>L2 <b>{imb.L2}W</b></span>
-            <span>L3 <b>{imb.L3}W</b></span>
+            <span>L1 <b>{Math.round(imb.L1)}W</b></span>
+            <span>L2 <b>{Math.round(imb.L2)}W</b></span>
+            <span>L3 <b>{Math.round(imb.L3)}W</b></span>
             <span className={`rounded px-2 py-0.5 font-semibold ${statusColors(imbStatus).chip}`}>
               Desequilíbrio: {imb.pct.toFixed(1)}% · {imbStatus === "ok" ? "OK" : imbStatus === "warn" ? "Quase a exceder" : "CRÍTICO"}
             </span>
