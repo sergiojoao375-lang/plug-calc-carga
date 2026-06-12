@@ -1,0 +1,247 @@
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import type { Panel } from "./storage";
+import { computeCircuit, feederDeltaU, phaseImbalance, type FeederContext } from "./engine";
+
+const FOOTER = "SérgioTech • sergiojoa931@gmail.com • WhatsApp +244 931 728 474 • TECNOLOGIA QUE LIGA SOLUÇÕES";
+
+function addFooter(doc: jsPDF) {
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const w = doc.internal.pageSize.getWidth();
+    const h = doc.internal.pageSize.getHeight();
+    doc.setFontSize(7);
+    doc.setTextColor(90);
+    doc.text(FOOTER, w / 2, h - 5, { align: "center" });
+    doc.text(`Página ${i} / ${pageCount}`, w - 10, h - 5, { align: "right" });
+  }
+}
+
+function header(doc: jsPDF, title: string, logo?: string) {
+  const w = doc.internal.pageSize.getWidth();
+  doc.setFillColor(20, 30, 45);
+  doc.rect(0, 0, w, 18, "F");
+  if (logo) {
+    try { doc.addImage(logo, "PNG", 10, 3, 12, 12); } catch {}
+  }
+  doc.setTextColor(140, 230, 160);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("PLUGTECH CalcStudio Pro", 26, 9);
+  doc.setTextColor(220);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("SérgioTech", 26, 14);
+  doc.setTextColor(255);
+  doc.setFontSize(11);
+  doc.text(title, w - 10, 11, { align: "right" });
+  doc.setTextColor(0);
+}
+
+export async function exportPDF(panels: Panel[], activeId: string | null, opts?: { logoDataUrl?: string }) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+  const panel = panels.find(p => p.id === activeId) ?? panels[0];
+  if (!panel) return;
+
+  header(doc, `Quadro: ${panel.name}`, opts?.logoDataUrl);
+
+  // Info do quadro
+  doc.setFontSize(9);
+  doc.text(
+    `Origem: ${panel.origin} | Tensão: ${panel.voltageMono}/${panel.voltageTri} V | Icc origem: ${panel.iccOriginKA} kA | Cabo: ${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`,
+    10, 24
+  );
+
+  // Calcular para tabela
+  const totalIb = panel.circuits.reduce((acc, c) => {
+    const s = (c.power) / Math.max(0.1, c.cosphi || 1);
+    return acc + (c.phase === "Tri" ? s / (Math.sqrt(3) * panel.voltageTri) : s / panel.voltageMono);
+  }, 0);
+  const fdU = feederDeltaU({
+    totalCurrentA: totalIb, cosphi: panel.cosphi, length: panel.feederLength,
+    section: panel.feederSection, material: panel.feederMaterial, phase: panel.phase,
+    voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+  });
+  const ctx: FeederContext = {
+    iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
+    feederSection: panel.feederSection, feederLength: panel.feederLength,
+    feederDeltaU: fdU, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+  };
+  const rows = panel.circuits.map((c, i) => {
+    const r = computeCircuit(c, ctx);
+    return [
+      String(i + 1), c.name, c.type, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
+      (c.power).toFixed(0), c.cosphi.toFixed(2), c.length.toFixed(1),
+      r.s.toFixed(0), r.ib.toFixed(2), `${r.in}A ${r.curve}`,
+      `${r.section} mm²`, r.iz.toFixed(0), (fdU + r.deltaU).toFixed(2) + "%",
+      r.iccTerm.toFixed(2), c.scenario,
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 28,
+    head: [["#", "Circuito", "Tipo", "Fase", "P(W)", "Cos φ", "L(m)", "S(VA)", "Ib(A)", "Proteção", "Secção", "Iz(A)", "ΔU", "Icc(kA)", "Instalação"]],
+    body: rows,
+    styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
+    headStyles: { fillColor: [30, 100, 60], textColor: 255, fontSize: 7.5 },
+    alternateRowStyles: { fillColor: [245, 248, 250] },
+    margin: { left: 10, right: 10 },
+    tableWidth: "auto",
+  });
+
+  // Resumo / corte geral
+  const totalP = panel.circuits.reduce((a, c) => a + c.power, 0);
+  const ibTot = panel.phase === "Tri"
+    ? totalP / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
+    : totalP / (panel.voltageMono * panel.cosphi);
+  const cutNeed = ibTot * 1.25;
+  const cutType = cutNeed > 100 ? "Fusíveis (gG)" : "Interruptor de Corte em Carga";
+  const modules = panel.circuits.reduce((a, c) => a + (c.phase === "Tri" ? 3 : 2), 4);
+  const modulesTotal = Math.ceil(modules * 1.2);
+  const imb = phaseImbalance(panel.circuits);
+
+  doc.setFontSize(9);
+  // @ts-ignore
+  const y = (doc as any).lastAutoTable.finalY + 6;
+  doc.text(`Potência total: ${totalP.toFixed(0)} W | Ib total: ${ibTot.toFixed(1)} A | I dimens. (1.25·Ib): ${cutNeed.toFixed(1)} A`, 10, y);
+  doc.text(`Corte geral sugerido: ${cutType}`, 10, y + 5);
+  doc.text(`Módulos DIN (com reserva 20%): ${modulesTotal}`, 10, y + 10);
+  doc.text(`Desequilíbrio de fases: L1=${imb.L1}W L2=${imb.L2}W L3=${imb.L3}W (${imb.pct.toFixed(1)}%)`, 10, y + 15);
+
+  // Página: diagrama de blocos
+  doc.addPage("a4", "landscape");
+  header(doc, "Diagrama Esquemático de Blocos", opts?.logoDataUrl);
+  drawBlockDiagram(doc, panel);
+
+  // Página: materiais
+  doc.addPage("a4", "landscape");
+  header(doc, "Lista Global de Materiais", opts?.logoDataUrl);
+  const matCables = new Map<string, number>(); // "Cu 2.5mm²" -> metros
+  const matBreakers = new Map<string, number>();
+  panel.circuits.forEach(c => {
+    const r = computeCircuit(c, ctx);
+    const k = `Cu ${r.section}mm²`;
+    matCables.set(k, (matCables.get(k) || 0) + c.length);
+    const b = `Disjuntor ${r.in}A Curva ${r.curve} (${c.phase})`;
+    matBreakers.set(b, (matBreakers.get(b) || 0) + 1);
+  });
+  matCables.set(`${panel.feederMaterial} ${panel.feederSection}mm² (interligação)`,
+    (matCables.get(`${panel.feederMaterial} ${panel.feederSection}mm² (interligação)`) || 0) + panel.feederLength);
+
+  autoTable(doc, {
+    startY: 24,
+    head: [["Cabo", "Metros"]],
+    body: Array.from(matCables.entries()).map(([k, v]) => [k, v.toFixed(1)]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [30, 100, 60] },
+    margin: { left: 10, right: 10 },
+  });
+  autoTable(doc, {
+    // @ts-ignore
+    startY: (doc as any).lastAutoTable.finalY + 6,
+    head: [["Aparelho", "Quantidade"]],
+    body: Array.from(matBreakers.entries()).map(([k, v]) => [k, String(v)]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [30, 100, 60] },
+    margin: { left: 10, right: 10 },
+  });
+
+  // Página: assinaturas (fundo branco puro)
+  doc.addPage("a4", "landscape");
+  header(doc, "Validação Técnica", opts?.logoDataUrl);
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 20, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight() - 30, "F");
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.2);
+  const w = doc.internal.pageSize.getWidth();
+  const baseY = 120;
+  doc.line(30, baseY, 120, baseY);
+  doc.line(w - 120, baseY, w - 30, baseY);
+  doc.setFontSize(9);
+  doc.setTextColor(0);
+  doc.text("Técnico Responsável", 75, baseY + 6, { align: "center" });
+  doc.text("Cliente", w - 75, baseY + 6, { align: "center" });
+
+  addFooter(doc);
+  doc.save(`PLUGTECH_${panel.name}.pdf`);
+}
+
+function drawBlockDiagram(doc: jsPDF, panel: Panel) {
+  const w = doc.internal.pageSize.getWidth();
+  doc.setDrawColor(20, 80, 60);
+  doc.setLineWidth(0.5);
+
+  // Caixa Origem
+  doc.setFillColor(235, 250, 240);
+  doc.rect(30, 40, 80, 30, "FD");
+  doc.setFontSize(11);
+  doc.setTextColor(20);
+  doc.text(`Origem: ${panel.origin}`, 70, 52, { align: "center" });
+  doc.setFontSize(8);
+  doc.text(`Icc: ${panel.iccOriginKA} kA`, 70, 60, { align: "center" });
+
+  // Seta + linha interligação
+  doc.line(110, 55, 150, 55);
+  doc.setFontSize(8);
+  doc.text(`Cabo ${panel.feederMaterial} ${panel.feederSection}mm²`, 130, 50, { align: "center" });
+  doc.text(`L = ${panel.feederLength} m`, 130, 60, { align: "center" });
+
+  // Caixa quadro atual
+  doc.setFillColor(220, 240, 255);
+  doc.rect(150, 40, 90, 30, "FD");
+  doc.setFontSize(11);
+  doc.text(`Quadro: ${panel.name}`, 195, 52, { align: "center" });
+  doc.setFontSize(8);
+  doc.text(`${panel.circuits.length} circuitos`, 195, 60, { align: "center" });
+
+  // Circuitos a jusante
+  const startY = 90;
+  const colW = (w - 40) / Math.max(1, Math.min(6, panel.circuits.length || 1));
+  panel.circuits.slice(0, 12).forEach((c, i) => {
+    const col = i % 6;
+    const row = Math.floor(i / 6);
+    const x = 20 + col * colW;
+    const y = startY + row * 35;
+    doc.setFillColor(250, 250, 250);
+    doc.rect(x, y, colW - 5, 28, "FD");
+    doc.setFontSize(8);
+    doc.text(c.name, x + 3, y + 6);
+    doc.setFontSize(7);
+    doc.text(`${c.type} ${c.phase}`, x + 3, y + 12);
+    doc.text(`${c.power}W L=${c.length}m`, x + 3, y + 18);
+    doc.text(`In=${c.inBreaker ?? "auto"}A`, x + 3, y + 24);
+  });
+}
+
+export function exportCSV(panel: Panel) {
+  const sep = ";";
+  const ctx: FeederContext = {
+    iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
+    feederSection: panel.feederSection, feederLength: panel.feederLength,
+    feederDeltaU: 0, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+  };
+  const headers = ["#","Circuito","Tipo","Fase","P(W)","CosPhi","L(m)","S(VA)","Ib(A)","In(A)","Curva","Seccao(mm2)","Iz(A)","DeltaU(%)","Icc(kA)","Instalacao"];
+  const lines = [headers.join(sep)];
+  panel.circuits.forEach((c, i) => {
+    const r = computeCircuit(c, ctx);
+    lines.push([
+      i + 1, c.name, c.type, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
+      c.power, c.cosphi.toFixed(2).replace(".", ","), c.length, r.s.toFixed(0),
+      r.ib.toFixed(2).replace(".", ","), r.in, r.curve, r.section,
+      r.iz.toFixed(0), r.deltaU.toFixed(2).replace(".", ","),
+      r.iccTerm.toFixed(2).replace(".", ","), c.scenario,
+    ].join(sep));
+  });
+  lines.push("");
+  lines.push(`Quadro${sep}${panel.name}`);
+  lines.push(`Origem${sep}${panel.origin}`);
+  lines.push(`Cabo interligação${sep}${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`);
+
+  const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `PLUGTECH_${panel.name}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
