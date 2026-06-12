@@ -97,6 +97,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
     ? totalP / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
     : totalP / (panel.voltageMono * panel.cosphi);
   const cutNeed = ibTot * 1.25;
+  const mainRating = pickMainDevice(cutNeed);
   const cutType = cutNeed > 100 ? "Fusíveis (gG)" : "Interruptor de Corte em Carga";
   const modules = panel.circuits.reduce((a, c) => a + (c.phase === "Tri" ? 3 : 2), 4);
   const modulesTotal = Math.ceil(modules * 1.2);
@@ -106,7 +107,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   // @ts-ignore
   const y = (doc as any).lastAutoTable.finalY + 6;
   doc.text(`Potência total: ${totalP.toFixed(0)} W | Ib total: ${ibTot.toFixed(1)} A | I dimens. (1.25·Ib): ${cutNeed.toFixed(1)} A`, 10, y);
-  doc.text(`Corte geral sugerido: ${cutType}`, 10, y + 5);
+  doc.text(`Corte geral sugerido: ${cutType} — Capacidade: ${mainRating} A`, 10, y + 5);
   doc.text(`Módulos DIN (com reserva 20%): ${modulesTotal}`, 10, y + 10);
   doc.text(`Desequilíbrio de fases: L1=${imb.L1}W L2=${imb.L2}W L3=${imb.L3}W (${imb.pct.toFixed(1)}%)`, 10, y + 15);
 
