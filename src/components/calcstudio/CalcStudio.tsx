@@ -146,6 +146,7 @@ export default function CalcStudio() {
       iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
       feederSection: panel.feederSection, feederLength: panel.feederLength,
       feederDeltaU: fdU, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+      isQGE: panel.panelKind === "QGE",
     };
   }, [panel]);
 
