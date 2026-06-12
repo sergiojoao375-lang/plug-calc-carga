@@ -134,25 +134,30 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   // Em QGE permite secções alargadas (até 400mm²) e calibres maiores
   const sectionList = ctx.isQGE ? FEEDER_SECTIONS : SECTIONS;
   const breakerList = ctx.isQGE ? STD_BREAKERS_QGE : STD_BREAKERS;
-  // Escolher menor secção que: Iz >= 1.25*Ib e ΔU acumulado <= 4%
+  // 1) Calibre alvo: menor disjuntor normalizado >= Ib (ou o escolhido pelo utilizador)
+  const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) ?? breakerList[breakerList.length - 1]);
+  // 2) Escolher AUTOMATICAMENTE a menor secção que coordena (Iz >= In, RTIEBT 433) e ΔU <= 4%
+  //    Resolve sozinho o caso In > Iz subindo a secção do cabo até a capacidade chegar.
   let chosen = minSec;
   let iz = izFor(chosen, c.scenario, "Cu");
-  let deltaU = 0;
+  let deltaU = deltaUPercent(c, chosen, "Cu", ctx);
+  let coordinated = false;
   for (const sec of sectionList) {
     if (sec < minSec) continue;
     const izTry = izFor(sec, c.scenario, "Cu");
     const dU = deltaUPercent(c, sec, "Cu", ctx);
-    if (izTry >= ib * 1.1 && (ctx.feederDeltaU + dU) <= 4.0) {
-      chosen = sec; iz = izTry; deltaU = dU; break;
-    }
     chosen = sec; iz = izTry; deltaU = dU;
+    if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) { coordinated = true; break; }
   }
 
-  const inBreaker = c.inBreaker ?? pickBreaker(ib, iz, breakerList);
+  const inBreaker = targetBreaker;
   const curve = c.curve ?? suggestCurve(c.type);
 
-  if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A).`);
+  if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A). Aumente a secção ou reduza o calibre.`);
   if (inBreaker < ib) errors.push(`Calibre insuficiente: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A).`);
+  if (!coordinated && inBreaker <= iz) {
+    // secção subida para coordenar mas ΔU pode estar no limite — apenas informativo
+  }
   const totalDU = ctx.feederDeltaU + deltaU;
   if (totalDU > 4.0) warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% > 4% (Portaria 850/2015).`);
 
