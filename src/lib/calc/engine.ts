@@ -98,11 +98,11 @@ export interface CalcResult {
   warnings: string[];
 }
 
-export function pickBreaker(ib: number, maxIz: number): number {
-  for (const b of STD_BREAKERS) {
+export function pickBreaker(ib: number, maxIz: number, breakers: number[] = STD_BREAKERS): number {
+  for (const b of breakers) {
     if (b >= ib && b <= maxIz) return b;
   }
-  return STD_BREAKERS[STD_BREAKERS.length - 1];
+  return breakers[breakers.length - 1];
 }
 
 export function suggestCurve(type: CircuitType): "B" | "C" | "D" {
