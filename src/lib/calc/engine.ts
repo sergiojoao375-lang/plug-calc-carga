@@ -1,0 +1,201 @@
+// PLUGTECH CalcStudio Pro - Motor de Cálculo (RTIEBT simplificado)
+// Resistividades (Ω·mm²/m) — método simplificado para ΔU e Icc
+export const RHO = { Cu: 0.0225, Al: 0.036 } as const;
+export type Material = "Cu" | "Al";
+
+export type CircuitType =
+  | "Iluminacao"
+  | "Tomadas"
+  | "AC"
+  | "Termoacumulador"
+  | "PlacaCozinha"
+  | "UAC";
+
+export type InstallScenario =
+  | "Enterrado"      // método D
+  | "Embutido"       // método A
+  | "Calha"          // método E
+  | "ArLivre";       // método E/F
+
+export type Phase = "Mono" | "Tri";
+
+export interface Circuit {
+  id: string;
+  name: string;
+  power: number;        // W
+  length: number;       // m
+  cosphi: number;
+  type: CircuitType;
+  cable: string;        // ex: "H07V-K" — informativo
+  scenario: InstallScenario;
+  phase: Phase;
+  phaseAssign?: "L1" | "L2" | "L3"; // apenas mono
+  inBreaker?: number;   // calibre escolhido
+  curve?: "B" | "C" | "D";
+}
+
+export const STD_BREAKERS = [6, 10, 16, 20, 25, 32, 40, 50, 63];
+
+// Tabela simplificada Iz (A) por secção (mm²) Cu — valores conservadores médios
+const IZ_CU: Record<number, Partial<Record<InstallScenario, number>>> = {
+  1.5:  { Embutido: 14.5, Enterrado: 22, Calha: 17.5, ArLivre: 19 },
+  2.5:  { Embutido: 20,   Enterrado: 29, Calha: 24,   ArLivre: 26 },
+  4:    { Embutido: 27,   Enterrado: 37, Calha: 32,   ArLivre: 35 },
+  6:    { Embutido: 34,   Enterrado: 46, Calha: 41,   ArLivre: 46 },
+  10:   { Embutido: 46,   Enterrado: 61, Calha: 57,   ArLivre: 63 },
+  16:   { Embutido: 62,   Enterrado: 79, Calha: 76,   ArLivre: 85 },
+  25:   { Embutido: 80,   Enterrado: 101, Calha: 101, ArLivre: 112 },
+  35:   { Embutido: 99,   Enterrado: 122, Calha: 125, ArLivre: 138 },
+  50:   { Embutido: 118,  Enterrado: 144, Calha: 151, ArLivre: 168 },
+  70:   { Embutido: 149,  Enterrado: 178, Calha: 192, ArLivre: 213 },
+  95:   { Embutido: 179,  Enterrado: 211, Calha: 232, ArLivre: 258 },
+};
+const IZ_AL_FACTOR = 0.78;
+
+export const SECTIONS = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95];
+
+export function izFor(section: number, scenario: InstallScenario, mat: Material = "Cu"): number {
+  const v = IZ_CU[section]?.[scenario] ?? 0;
+  return mat === "Al" ? Math.round(v * IZ_AL_FACTOR) : v;
+}
+
+export const POWER_FACTOR_LOAD: Record<CircuitType, number> = {
+  Iluminacao: 1.0, Tomadas: 1.0, AC: 1.25, Termoacumulador: 1.0, PlacaCozinha: 1.0, UAC: 1.25,
+};
+
+export interface CalcResult {
+  s: number;       // VA
+  ib: number;      // A
+  in: number;      // A (calibre)
+  curve: "B" | "C" | "D";
+  section: number; // mm²
+  iz: number;      // A
+  deltaU: number;  // %
+  iccTerm: number; // kA
+  modules: number; // módulos DIN
+  errors: string[];
+  warnings: string[];
+}
+
+export function pickBreaker(ib: number, maxIz: number): number {
+  for (const b of STD_BREAKERS) {
+    if (b >= ib && b <= maxIz) return b;
+  }
+  return STD_BREAKERS[STD_BREAKERS.length - 1];
+}
+
+export function suggestCurve(type: CircuitType): "B" | "C" | "D" {
+  if (type === "AC" || type === "UAC") return "D";
+  return "C";
+}
+
+export interface FeederContext {
+  iccOriginKA: number;     // Icc da origem (montante)
+  feederMaterial: Material;
+  feederSection: number;   // mm²
+  feederLength: number;    // m
+  feederDeltaU: number;    // % já calculado para o quadro
+  voltageMono: number;     // 230
+  voltageTri: number;      // 400
+}
+
+export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const loadFactor = POWER_FACTOR_LOAD[c.type] ?? 1;
+  const cos = Math.max(0.1, Math.min(1, c.cosphi || 1));
+  const s = (c.power * loadFactor) / cos;
+  const ib = c.phase === "Tri" ? s / (Math.sqrt(3) * ctx.voltageTri) : s / ctx.voltageMono;
+
+  // Secção mínima por tipo
+  const minSec = c.type === "Iluminacao" ? 1.5 : 2.5;
+  // Escolher menor secção que: Iz >= 1.25*Ib e ΔU acumulado <= 4%
+  let chosen = minSec;
+  let iz = izFor(chosen, c.scenario, "Cu");
+  let deltaU = 0;
+  for (const sec of SECTIONS) {
+    if (sec < minSec) continue;
+    const izTry = izFor(sec, c.scenario, "Cu");
+    const dU = deltaUPercent(c, sec, "Cu", ctx);
+    if (izTry >= ib * 1.1 && (ctx.feederDeltaU + dU) <= 4.0) {
+      chosen = sec; iz = izTry; deltaU = dU; break;
+    }
+    chosen = sec; iz = izTry; deltaU = dU;
+  }
+
+  const inBreaker = c.inBreaker ?? pickBreaker(ib, iz);
+  const curve = c.curve ?? suggestCurve(c.type);
+
+  if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A).`);
+  if (inBreaker < ib) errors.push(`Calibre insuficiente: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A).`);
+  const totalDU = ctx.feederDeltaU + deltaU;
+  if (totalDU > 4.0) warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% > 4% (Portaria 850/2015).`);
+
+  // ICC terminal (simplificado): Icc_term = U / (sqrt(3?)*Z_total)
+  const Zup = ctx.iccOriginKA > 0 ? (ctx.voltageTri / (Math.sqrt(3) * ctx.iccOriginKA * 1000)) : 0.001;
+  const Zfeeder = (RHO[ctx.feederMaterial] * ctx.feederLength) / Math.max(1, ctx.feederSection);
+  const Zline = (RHO.Cu * c.length) / Math.max(1, chosen);
+  const Ztot = Zup + Zfeeder + Zline;
+  const Ucalc = c.phase === "Tri" ? ctx.voltageTri / Math.sqrt(3) : ctx.voltageMono;
+  const iccTerm = Ztot > 0 ? (Ucalc / Ztot) / 1000 : 0;
+
+  const modules = c.phase === "Tri" ? 3 : (c.type === "AC" || c.type === "UAC" ? 2 : 1);
+
+  return { s, ib, in: inBreaker, curve, section: chosen, iz, deltaU, iccTerm, modules, errors, warnings };
+}
+
+export function deltaUPercent(c: Circuit, section: number, mat: Material, ctx: FeederContext): number {
+  const cos = Math.max(0.1, c.cosphi || 1);
+  const loadFactor = POWER_FACTOR_LOAD[c.type] ?? 1;
+  const s = (c.power * loadFactor) / cos;
+  if (c.phase === "Tri") {
+    const ib = s / (Math.sqrt(3) * ctx.voltageTri);
+    const dU = (Math.sqrt(3) * RHO[mat] * c.length * ib * cos) / section;
+    return (dU / ctx.voltageTri) * 100;
+  } else {
+    const ib = s / ctx.voltageMono;
+    const dU = (2 * RHO[mat] * c.length * ib * cos) / section;
+    return (dU / ctx.voltageMono) * 100;
+  }
+}
+
+// Cálculo da queda de tensão do feeder (linha de interligação)
+export function feederDeltaU(params: {
+  totalCurrentA: number; cosphi: number; length: number; section: number;
+  material: Material; phase: Phase; voltageMono: number; voltageTri: number;
+}): number {
+  const { totalCurrentA, cosphi, length, section, material, phase, voltageMono, voltageTri } = params;
+  if (phase === "Tri") {
+    const dU = (Math.sqrt(3) * RHO[material] * length * totalCurrentA * cosphi) / Math.max(1, section);
+    return (dU / voltageTri) * 100;
+  } else {
+    const dU = (2 * RHO[material] * length * totalCurrentA * cosphi) / Math.max(1, section);
+    return (dU / voltageMono) * 100;
+  }
+}
+
+// Equilíbrio de fases automático (greedy: maior carga -> fase com menor soma)
+export function balancePhases(circuits: Circuit[]): Circuit[] {
+  const monos = circuits.filter(c => c.phase === "Mono").sort((a, b) => b.power - a.power);
+  const sums = { L1: 0, L2: 0, L3: 0 } as Record<"L1"|"L2"|"L3", number>;
+  const updated = [...circuits];
+  for (const c of monos) {
+    const phase = (Object.keys(sums) as Array<"L1"|"L2"|"L3">).reduce((a, b) => sums[a] <= sums[b] ? a : b);
+    sums[phase] += c.power;
+    const i = updated.findIndex(x => x.id === c.id);
+    updated[i] = { ...updated[i], phaseAssign: phase };
+  }
+  return updated;
+}
+
+export function phaseImbalance(circuits: Circuit[]): { L1: number; L2: number; L3: number; pct: number } {
+  const s = { L1: 0, L2: 0, L3: 0 };
+  circuits.filter(c => c.phase === "Mono").forEach(c => {
+    if (c.phaseAssign) s[c.phaseAssign] += c.power;
+  });
+  const avg = (s.L1 + s.L2 + s.L3) / 3 || 1;
+  const max = Math.max(s.L1, s.L2, s.L3);
+  const min = Math.min(s.L1, s.L2, s.L3);
+  const pct = ((max - min) / avg) * 100;
+  return { ...s, pct };
+}
