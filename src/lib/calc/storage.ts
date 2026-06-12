@@ -46,7 +46,7 @@ export function seed(): AppState {
       id, name: "Q.G.B.T.", origin: "PT/QGE",
       feederMaterial: "Cu", feederSection: 16, feederLength: 10,
       iccOriginKA: 6, voltageMono: 230, voltageTri: 400,
-      phase: "Tri", cosphi: 0.95, circuits: [],
+      phase: "Tri", cosphi: 0.95, panelKind: "QGE", circuits: [],
     }],
     activePanelId: id,
   };
