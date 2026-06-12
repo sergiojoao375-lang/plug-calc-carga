@@ -49,14 +49,33 @@ const IZ_CU: Record<number, Partial<Record<InstallScenario, number>>> = {
   50:   { Embutido: 118,  Enterrado: 144, Calha: 151, ArLivre: 168 },
   70:   { Embutido: 149,  Enterrado: 178, Calha: 192, ArLivre: 213 },
   95:   { Embutido: 179,  Enterrado: 211, Calha: 232, ArLivre: 258 },
+  120:  { Embutido: 234,  Enterrado: 261, Calha: 298, ArLivre: 327 },
+  150:  { Embutido: 269,  Enterrado: 298, Calha: 344, ArLivre: 376 },
+  185:  { Embutido: 306,  Enterrado: 339, Calha: 392, ArLivre: 428 },
+  240:  { Embutido: 360,  Enterrado: 400, Calha: 461, ArLivre: 504 },
+  300:  { Embutido: 415,  Enterrado: 458, Calha: 530, ArLivre: 578 },
+  400:  { Embutido: 473,  Enterrado: 519, Calha: 624, ArLivre: 681 },
 };
 const IZ_AL_FACTOR = 0.78;
 
+// Secções para circuitos terminais
 export const SECTIONS = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95];
+// Secções para a linha de interligação (feeder) — vai bem além de 95mm²
+export const FEEDER_SECTIONS = [10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300, 400];
 
 export function izFor(section: number, scenario: InstallScenario, mat: Material = "Cu"): number {
   const v = IZ_CU[section]?.[scenario] ?? 0;
   return mat === "Al" ? Math.round(v * IZ_AL_FACTOR) : v;
+}
+
+// Calibres normalizados de aparelho de corte geral (disjuntor/interruptor) em A
+export const MAIN_DEVICE_RATINGS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250];
+
+export function pickMainDevice(currentA: number): number {
+  for (const r of MAIN_DEVICE_RATINGS) {
+    if (r >= currentA) return r;
+  }
+  return MAIN_DEVICE_RATINGS[MAIN_DEVICE_RATINGS.length - 1];
 }
 
 export const POWER_FACTOR_LOAD: Record<CircuitType, number> = {

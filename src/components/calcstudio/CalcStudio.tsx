@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { LogoST } from "./Logo";
 import {
   type Circuit, type Material, type Phase, type InstallScenario, type CircuitType,
-  computeCircuit, feederDeltaU, phaseImbalance, balancePhases,
-  SECTIONS, STD_BREAKERS, type FeederContext,
+  computeCircuit, feederDeltaU, phaseImbalance, balancePhases, pickMainDevice,
+  FEEDER_SECTIONS, type FeederContext,
 } from "@/lib/calc/engine";
 import { loadState, saveState, type AppState, type Panel } from "@/lib/calc/storage";
-import { exportCSV, exportPDF } from "@/lib/calc/export";
+import { exportCSV, exportPDF, exportCascadePDF } from "@/lib/calc/export";
+import { ConduitCalculator } from "./ConduitCalculator";
+import { statusColors, type Status } from "./status";
 
 const CIRCUIT_TYPES: CircuitType[] = ["Iluminacao", "Tomadas", "AC", "Termoacumulador", "PlacaCozinha", "UAC"];
 const SCENARIOS: { v: InstallScenario; label: string }[] = [
@@ -40,6 +42,7 @@ export default function CalcStudio() {
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
   const [showPanelMgr, setShowPanelMgr] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
+  const [showConduit, setShowConduit] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>();
 
   useEffect(() => { setState(loadState()); }, []);
@@ -152,20 +155,32 @@ export default function CalcStudio() {
   }, [panel, ctx]);
 
   const totals = useMemo(() => {
-    if (!panel) return { p: 0, ib: 0, cutNeed: 0, modules: 0, cut: "—" };
+    if (!panel) return { p: 0, ib: 0, cutNeed: 0, modules: 0, cut: "—", mainRating: 0 };
     const p = panel.circuits.reduce((a, x) => a + x.power, 0);
     const ib = panel.phase === "Tri"
       ? p / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
       : p / (panel.voltageMono * panel.cosphi);
     const cutNeed = ib * 1.25;
     const modules = Math.ceil((panel.circuits.reduce((a, c) => a + (c.phase === "Tri" ? 3 : 2), 4)) * 1.2);
-    const cut = cutNeed > 100 ? "Fusíveis gG" : "Interruptor de Corte em Carga";
-    return { p, ib, cutNeed, modules, cut };
+    const mainRating = pickMainDevice(cutNeed);
+    const device = cutNeed > 100 ? "Fusíveis gG" : "Interruptor";
+    const cut = `${device} ${mainRating}A`;
+    return { p, ib, cutNeed, modules, cut, mainRating };
   }, [panel]);
+
 
   const imb = useMemo(() => panel ? phaseImbalance(panel.circuits) : null, [panel]);
 
+  // Estados de alerta (OK / quase a exceder / crítico)
+  const feederStatus: Status = ctx
+    ? (ctx.feederDeltaU >= 4 ? "critical" : ctx.feederDeltaU >= 3 ? "warn" : "ok")
+    : "ok";
+  const imbStatus: Status = imb
+    ? (imb.pct >= 15 ? "critical" : imb.pct >= 10 ? "warn" : "ok")
+    : "ok";
+
   const selected = computed.find(x => x.c.id === selectedCircuitId);
+
 
   if (!panel) return <div className="p-8">A carregar…</div>;
 
@@ -174,9 +189,11 @@ export default function CalcStudio() {
       {/* ===== HEADER FIXO ===== */}
       <header className="sticky top-0 z-30 border-b border-border bg-[color:var(--surface-1)]/95 backdrop-blur">
         <div className="flex flex-wrap items-center gap-3 px-4 py-2">
-          {logoDataUrl
-            ? <img src={logoDataUrl} alt="SérgioTech" className="h-9 w-9 rounded" />
-            : <LogoST size={36} />}
+          <div onDoubleClick={() => setShowConduit(true)} title="Estúdio PLUGTECH" className="cursor-pointer select-none">
+            {logoDataUrl
+              ? <img src={logoDataUrl} alt="SérgioTech" className="h-9 w-9 rounded" />
+              : <LogoST size={36} />}
+          </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <label className="text-xs text-muted-foreground">Quadro:</label>
             <select
@@ -191,6 +208,7 @@ export default function CalcStudio() {
             <button onClick={() => setShowPanelMgr(s => !s)} title="Configuração do quadro" className="rounded-md border border-border px-2 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">⚙</button>
             <button onClick={() => exportCSV(panel)} className="rounded-md border border-[color:var(--brand-blue)]/50 px-3 py-1.5 text-sm hover:bg-[color:var(--brand-blue)]/10">CSV</button>
             <button onClick={() => exportPDF(state.panels, panel.id, { logoDataUrl })} className="rounded-md bg-[color:var(--brand-blue)] px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:brightness-110">PDF</button>
+            <button onClick={() => exportCascadePDF(state.panels, { logoDataUrl })} title="Diagrama geral em cascata de todos os quadros" className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">PDF Cascata</button>
             <button onClick={() => setShowAbout(s => !s)} className="rounded-md border border-border px-2 py-1.5 text-sm">Sobre</button>
           </div>
         </div>
@@ -238,7 +256,7 @@ export default function CalcStudio() {
                   </select>
                   <select value={panel.feederSection} onChange={e => updatePanel({ feederSection: +e.target.value })}
                     className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                    {SECTIONS.map(s => <option key={s} value={s}>{s} mm²</option>)}
+                    {FEEDER_SECTIONS.map(s => <option key={s} value={s}>{s} mm²</option>)}
                   </select>
                   <input type="number" step="0.1" value={panel.feederLength} onChange={e => updatePanel({ feederLength: +e.target.value || 0 })}
                     className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" placeholder="L (m)" />
@@ -247,7 +265,13 @@ export default function CalcStudio() {
                     <option value="Mono">Mono</option><option value="Tri">Trifásico</option>
                   </select>
                 </div>
-                {ctx && <div className="text-[10px] text-muted-foreground">ΔU feeder: <span className="text-[color:var(--brand-green)] font-semibold">{ctx.feederDeltaU.toFixed(2)}%</span></div>}
+                {ctx && (
+                  <div className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${statusColors(feederStatus).chip}`}>
+                    ΔU feeder: {ctx.feederDeltaU.toFixed(2)}%
+                    {" · "}
+                    {feederStatus === "ok" ? "OK" : feederStatus === "warn" ? "Quase a exceder" : "CRÍTICO"}
+                  </div>
+                )}
               </div>
 
               {/* Quadro atual */}
@@ -435,12 +459,14 @@ export default function CalcStudio() {
             <span>L1 <b>{imb.L1}W</b></span>
             <span>L2 <b>{imb.L2}W</b></span>
             <span>L3 <b>{imb.L3}W</b></span>
-            <span className={imb.pct > 15 ? "rounded bg-warning/20 px-2 py-0.5 text-warning" : "text-muted-foreground"}>
-              Desequilíbrio: {imb.pct.toFixed(1)}%
+            <span className={`rounded px-2 py-0.5 font-semibold ${statusColors(imbStatus).chip}`}>
+              Desequilíbrio: {imb.pct.toFixed(1)}% · {imbStatus === "ok" ? "OK" : imbStatus === "warn" ? "Quase a exceder" : "CRÍTICO"}
             </span>
           </div>
         )}
       </footer>
+
+      {showConduit && <ConduitCalculator onClose={() => setShowConduit(false)} />}
     </div>
   );
 }
