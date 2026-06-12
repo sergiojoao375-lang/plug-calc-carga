@@ -118,6 +118,7 @@ export interface FeederContext {
   feederDeltaU: number;    // % já calculado para o quadro
   voltageMono: number;     // 230
   voltageTri: number;      // 400
+  isQGE?: boolean;         // quadro geral: calibres e secções alargados
 }
 
 export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
