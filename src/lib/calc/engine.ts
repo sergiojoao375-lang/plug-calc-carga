@@ -200,9 +200,13 @@ export function feederDeltaU(params: {
 }
 
 // Equilíbrio de fases automático (greedy: maior carga -> fase com menor soma)
+// As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada).
 export function balancePhases(circuits: Circuit[]): Circuit[] {
   const monos = circuits.filter(c => c.phase === "Mono").sort((a, b) => b.power - a.power);
-  const sums = { L1: 0, L2: 0, L3: 0 } as Record<"L1"|"L2"|"L3", number>;
+  const triPerPhase = circuits
+    .filter(c => c.phase === "Tri")
+    .reduce((a, c) => a + c.power / 3, 0);
+  const sums = { L1: triPerPhase, L2: triPerPhase, L3: triPerPhase } as Record<"L1"|"L2"|"L3", number>;
   const updated = [...circuits];
   for (const c of monos) {
     const phase = (Object.keys(sums) as Array<"L1"|"L2"|"L3">).reduce((a, b) => sums[a] <= sums[b] ? a : b);
@@ -215,6 +219,12 @@ export function balancePhases(circuits: Circuit[]): Circuit[] {
 
 export function phaseImbalance(circuits: Circuit[]): { L1: number; L2: number; L3: number; pct: number } {
   const s = { L1: 0, L2: 0, L3: 0 };
+  // Cargas trifásicas distribuídas igualmente pelas 3 fases
+  circuits.filter(c => c.phase === "Tri").forEach(c => {
+    const per = c.power / 3;
+    s.L1 += per; s.L2 += per; s.L3 += per;
+  });
+  // Cargas monofásicas na fase atribuída
   circuits.filter(c => c.phase === "Mono").forEach(c => {
     if (c.phaseAssign) s[c.phaseAssign] += c.power;
   });
