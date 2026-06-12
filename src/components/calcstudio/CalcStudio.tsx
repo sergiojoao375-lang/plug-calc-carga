@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { LogoST } from "./Logo";
 import {
   type Circuit, type Material, type Phase, type InstallScenario, type CircuitType,
-  computeCircuit, feederDeltaU, phaseImbalance, balancePhases,
-  SECTIONS, STD_BREAKERS, type FeederContext,
+  computeCircuit, feederDeltaU, phaseImbalance, balancePhases, pickMainDevice,
+  SECTIONS, FEEDER_SECTIONS, STD_BREAKERS, type FeederContext,
 } from "@/lib/calc/engine";
 import { loadState, saveState, type AppState, type Panel } from "@/lib/calc/storage";
-import { exportCSV, exportPDF } from "@/lib/calc/export";
+import { exportCSV, exportPDF, exportCascadePDF } from "@/lib/calc/export";
+import { ConduitCalculator } from "./ConduitCalculator";
+import { statusColors, type Status } from "./status";
 
 const CIRCUIT_TYPES: CircuitType[] = ["Iluminacao", "Tomadas", "AC", "Termoacumulador", "PlacaCozinha", "UAC"];
 const SCENARIOS: { v: InstallScenario; label: string }[] = [
