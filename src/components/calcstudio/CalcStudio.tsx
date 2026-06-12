@@ -171,7 +171,16 @@ export default function CalcStudio() {
 
   const imb = useMemo(() => panel ? phaseImbalance(panel.circuits) : null, [panel]);
 
+  // Estados de alerta (OK / quase a exceder / crítico)
+  const feederStatus: Status = ctx
+    ? (ctx.feederDeltaU >= 4 ? "critical" : ctx.feederDeltaU >= 3 ? "warn" : "ok")
+    : "ok";
+  const imbStatus: Status = imb
+    ? (imb.pct >= 15 ? "critical" : imb.pct >= 10 ? "warn" : "ok")
+    : "ok";
+
   const selected = computed.find(x => x.c.id === selectedCircuitId);
+
 
   if (!panel) return <div className="p-8">A carregar…</div>;
 
