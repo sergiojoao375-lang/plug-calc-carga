@@ -131,11 +131,14 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
 
   // Secção mínima por tipo
   const minSec = c.type === "Iluminacao" ? 1.5 : 2.5;
+  // Em QGE permite secções alargadas (até 400mm²) e calibres maiores
+  const sectionList = ctx.isQGE ? FEEDER_SECTIONS : SECTIONS;
+  const breakerList = ctx.isQGE ? STD_BREAKERS_QGE : STD_BREAKERS;
   // Escolher menor secção que: Iz >= 1.25*Ib e ΔU acumulado <= 4%
   let chosen = minSec;
   let iz = izFor(chosen, c.scenario, "Cu");
   let deltaU = 0;
-  for (const sec of SECTIONS) {
+  for (const sec of sectionList) {
     if (sec < minSec) continue;
     const izTry = izFor(sec, c.scenario, "Cu");
     const dU = deltaUPercent(c, sec, "Cu", ctx);
@@ -145,7 +148,7 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
     chosen = sec; iz = izTry; deltaU = dU;
   }
 
-  const inBreaker = c.inBreaker ?? pickBreaker(ib, iz);
+  const inBreaker = c.inBreaker ?? pickBreaker(ib, iz, breakerList);
   const curve = c.curve ?? suggestCurve(c.type);
 
   if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A).`);
