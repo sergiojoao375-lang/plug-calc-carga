@@ -12,6 +12,7 @@ export interface Panel {
   voltageTri: number;
   phase: Phase;            // alimentação do quadro
   cosphi: number;
+  panelKind?: "QE" | "QGE"; // tipo de quadro (distribuição vs geral)
   circuits: Circuit[];
 }
 
