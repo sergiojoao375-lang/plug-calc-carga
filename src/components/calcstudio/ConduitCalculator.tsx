@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import {
-  computeConduit, fillRatioFor, CABLE_OD, STD_CONDUITS,
+  computeConduit, CABLE_OD, STD_CONDUITS,
   type ConduitCable,
 } from "@/lib/calc/conduit";
 
