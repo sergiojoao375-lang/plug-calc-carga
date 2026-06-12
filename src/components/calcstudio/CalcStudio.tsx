@@ -459,12 +459,14 @@ export default function CalcStudio() {
             <span>L1 <b>{imb.L1}W</b></span>
             <span>L2 <b>{imb.L2}W</b></span>
             <span>L3 <b>{imb.L3}W</b></span>
-            <span className={imb.pct > 15 ? "rounded bg-warning/20 px-2 py-0.5 text-warning" : "text-muted-foreground"}>
-              Desequilíbrio: {imb.pct.toFixed(1)}%
+            <span className={`rounded px-2 py-0.5 font-semibold ${statusColors(imbStatus).chip}`}>
+              Desequilíbrio: {imb.pct.toFixed(1)}% · {imbStatus === "ok" ? "OK" : imbStatus === "warn" ? "Quase a exceder" : "CRÍTICO"}
             </span>
           </div>
         )}
       </footer>
+
+      {showConduit && <ConduitCalculator onClose={() => setShowConduit(false)} />}
     </div>
   );
 }
