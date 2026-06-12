@@ -282,11 +282,20 @@ export default function CalcStudio() {
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Quadro Atual</div>
                 <input value={panel.name} onChange={e => updatePanel({ name: e.target.value })}
                   className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm font-semibold" />
-                <label className="text-xs">Cos φ global
-                  <input type="number" step="0.01" min="0.1" max="1" value={panel.cosphi}
-                    onChange={e => updatePanel({ cosphi: +e.target.value || 0.95 })}
-                    className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
-                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <label>Cos φ global
+                    <input type="number" step="0.01" min="0.1" max="1" value={panel.cosphi}
+                      onChange={e => updatePanel({ cosphi: +e.target.value || 0.95 })}
+                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
+                  </label>
+                  <label>Tipo de Quadro
+                    <select value={panel.panelKind ?? "QE"} onChange={e => updatePanel({ panelKind: e.target.value as "QE" | "QGE" })}
+                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
+                      <option value="QE">Distribuição (Q.E.)</option>
+                      <option value="QGE">Quadro Geral (QGE)</option>
+                    </select>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
