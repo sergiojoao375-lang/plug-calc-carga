@@ -155,16 +155,19 @@ export default function CalcStudio() {
   }, [panel, ctx]);
 
   const totals = useMemo(() => {
-    if (!panel) return { p: 0, ib: 0, cutNeed: 0, modules: 0, cut: "—" };
+    if (!panel) return { p: 0, ib: 0, cutNeed: 0, modules: 0, cut: "—", mainRating: 0 };
     const p = panel.circuits.reduce((a, x) => a + x.power, 0);
     const ib = panel.phase === "Tri"
       ? p / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
       : p / (panel.voltageMono * panel.cosphi);
     const cutNeed = ib * 1.25;
     const modules = Math.ceil((panel.circuits.reduce((a, c) => a + (c.phase === "Tri" ? 3 : 2), 4)) * 1.2);
-    const cut = cutNeed > 100 ? "Fusíveis gG" : "Interruptor de Corte em Carga";
-    return { p, ib, cutNeed, modules, cut };
+    const mainRating = pickMainDevice(cutNeed);
+    const device = cutNeed > 100 ? "Fusíveis gG" : "Interruptor";
+    const cut = `${device} ${mainRating}A`;
+    return { p, ib, cutNeed, modules, cut, mainRating };
   }, [panel]);
+
 
   const imb = useMemo(() => panel ? phaseImbalance(panel.circuits) : null, [panel]);
 
