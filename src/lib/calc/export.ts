@@ -256,6 +256,14 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
   });
 
   let y = 26;
+  const pLineC = projectLine(opts?.project);
+  if (pLineC) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(pLineC, 10, y);
+    doc.setFont("helvetica", "normal");
+    y += 6;
+  }
   const boxH = 30;
   const gapY = 14;
   const leftX = 16;
