@@ -1,66 +1,71 @@
-# Plano — Modal "Sobre" Informativo
+# Plano — CSS do badge, tubagem com cabos, dados da obra, guardar projeto e executável desktop
 
-O botão "Sobre" já existe no cabeçalho (`showAbout`), mas apenas exibe contacto do desenvolvedor. Vai ser convertido num **modal de ajuda/documentação** com explicações resumidas de toda a lógica da app.
+Cinco pedidos. Os quatro primeiros são alterações na app; o quinto gera o executável desktop via Electron.
 
-## Alterações
+## 1. Ocultar badge Lovable (CSS)
 
-### 1. Converter `showAbout` de secção colapsável para modal
-- Usar o componente `<Dialog>` do shadcn/ui (já disponível no projeto).
-- O botão "Sobre" no header passa a abrir o modal em vez de expandir inline.
-- Eliminar o bloco inline antigo (linhas 368–377 do `CalcStudio.tsx`).
+Adicionar o bloco CSS fornecido ao fim de `src/styles.css` (não existe `index.css` neste projeto — o ficheiro global é `styles.css`). As regras escondem qualquer link/iframe/badge "Edit with Lovable".
 
-### 2. Conteúdo do modal (em Português)
-O modal terá uma lista de tópicos, cada um com título e breve descrição:
+```text
+a[href*="lovable.dev"], iframe[src*="lovable.dev"],
+div[style*="Edit with Lovable"], .lovable-badge { display:none !important; ... }
+```
 
-1. **Queda de Tensão (ΔU)**
-   - Cálculo simplificado segundo método das resistências (ρ·L·I/S).
-   - Limite de 4% total (feeder + circuito) imposto pela Portaria 850/2015.
-   - Alertas visuais quando o valor se aproxima ou ultrapassa o limite.
+## 2. Tubagem: suportar cabos além de fio (XV, RZ1-K, etc.)
 
-2. **Coordenação In ≤ Iz (RTIEBT 433)**
-   - O calibre do disjuntor (`In`) não pode ser superior à capacidade do cabo (`Iz`).
-   - A app escolhe automaticamente a secção mínima que garante `Iz ≥ In`.
-   - Se o utilizador forçar um `In` manual maior que `Iz`, aparece erro vermelho.
+Atualmente a calculadora usa só os diâmetros do fio H07V-K (`CABLE_OD` em `conduit.ts`). Vai passar a suportar vários **tipos de condutor**, cada um com a sua tabela de diâmetro exterior por secção:
 
-3. **Curvas de Proteção (B / C / D)**
-   - **B**: cargas puramente resistivas (iluminação, tomadas).
-   - **C**: cargas mistas (motores pequenos, eletrodomésticos).
-   - **D**: cargas com alto pico de arranque (ar condicionado, UAC).
-   - Sugestão automática: D para AC/UAC; C para os restantes.
+- `H07V-K` / `H07V-R` — fio rígido/flexível (tabela atual).
+- `XV (VV)` — cabo PVC.
+- `RZ1-K` / `XZ1` — cabo isolamento XLPE livre de halogéneo.
+- `FVV` — cabo multipolar PVC.
 
-4. **Equilíbrio de Fases**
-   - Cargas trifásicas dividem-se igualmente (P/3 em cada fase).
-   - Cargas monofásicas são distribuídas pelo algoritmo greedy para minimizar o desequilíbrio.
-   - Alerta visual: verde (OK) / amarelo (quase a exceder) / vermelho (crítico >15%).
+Alterações em `src/lib/calc/conduit.ts`:
+- Substituir `CABLE_OD` único por um mapa `CABLE_OD_BY_TYPE: Record<tipo, Record<secção, Ø>>` com diâmetros aproximados por tipo.
+- `ConduitCable` ganha campo `type`.
+- `computeConduit` lê o Ø do tipo escolhido.
 
-5. **Dimensionamento de Secções**
-   - Em quadro de distribuição (QE): secções até 95 mm², calibres até 63 A.
-   - Em quadro geral (QGE): secções até 400 mm², calibres até 630 A.
-   - A secção é subida automaticamente se o ΔU ou In > Iz o exigirem.
+Alterações em `src/components/calcstudio/ConduitCalculator.tsx`:
+- Cada linha de condutor passa a ter um seletor de **Tipo de cabo** (além de secção e nº de condutores).
+- As secções disponíveis ajustam-se ao tipo selecionado.
 
-6. **Corrente de Curto-Circuito (Icc)**
-   - Cálculo simplificado: Icc terminal diminui com o comprimento e a secção da linha.
-   - Permite verificar se o disjuntor tem capacidade de corte suficiente.
+## 3. Aba de dados da obra (cabeçalho do projeto)
 
-7. **Aparelhagem Geral (Corte Geral)**
-   - Dimensionado com fator de 1.25 × Ib total.
-   - Acima de 100 A sugere fusíveis gG; abaixo sugere interruptor.
-   - Mostra a capacidade real do dispositivo escolhido.
+Adicionar campos ao projeto:
+- **Nome da obra**
+- **Engenheiro responsável**
+- **Nº de carteira** (cédula profissional)
 
-8. **Tubagem Elétrica**
-   - Calculadora oculta (botão "Tubagem" ou duplo-clique no logo).
-   - Baseada na taxa de enchimento máxima (53% / 31% / 40%) segundo o nº de condutores.
-   - Sugere diâmetro nominal do tubo normalizado.
+Implementação:
+- Em `src/lib/calc/storage.ts`: adicionar a `AppState` um objeto `project: { obra, engenheiro, carteira }` (com default vazio no `seed()`).
+- Em `CalcStudio.tsx`: botão **"Obra"** no cabeçalho que abre um modal (`Dialog` shadcn) com os três campos, gravados no estado.
+- Em `src/lib/calc/export.ts`: incluir estes dados no cabeçalho/primeira página dos PDF (relatório e cascata), para constarem nos documentos oficiais.
 
-9. **Exportação**
-   - **CSV**: lista de circuitos com todos os dados calculados.
-   - **PDF**: relatório do quadro ativo com especificações.
-   - **PDF Cascata**: diagrama geral de todos os quadros em cascata com cabos e dados.
+## 4. Guardar / abrir projeto
 
-10. **Desenvolvedor**
-    - SérgioTech, contacto e slogan (manter info existente).
+O estado já persiste em `localStorage`. Acrescentar guardar/abrir como ficheiro:
+- Botão **"Guardar"** — exporta todo o `AppState` (quadros + dados da obra) para um ficheiro `.json` descarregável (nome derivado da obra).
+- Botão **"Abrir"** — `input file` que lê um `.json` e restaura o estado.
+- Funções utilitárias `saveProjectFile(state)` e `loadProjectFile(file)` em `storage.ts`.
 
-### 3. Ficheiro a alterar
-- `src/components/calcstudio/CalcStudio.tsx` — substituir o bloco `showAbout` inline pelo componente `<Dialog>` do shadcn, importando-o no topo do ficheiro.
+## 5. Executável desktop (Electron)
 
-Nenhuma alteração de backend ou motor de cálculo é necessária. Apenas UI e texto informativo.
+Empacotar a app como aplicação desktop usando `@electron/packager` (o build do site corre em paralelo).
+
+Passos:
+- `base: './'` no build para os assets carregarem via `file://`.
+- Criar `electron/main.cjs` (CommonJS) com `BrowserWindow` a carregar `dist/index.html`, `contextIsolation: true`, `nodeIntegration: false`.
+- Definir `"main": "electron/main.cjs"` no `package.json`.
+- Instalar `electron` + `@electron/packager` (dev), construir o frontend e empacotar para Linux/Windows.
+- Arquivar o resultado em `/mnt/documents/` para download.
+
+Nota técnica: este projeto é TanStack Start com SSR (Cloudflare). Para o Electron será usado um build estático do frontend (cliente) servido por `file://`; funcionalidades de servidor não são usadas (a app é cálculo 100% no cliente com `localStorage`), pelo que o empacotamento desktop funciona bem. Será entregue o `.tar.gz` (Linux) e, se possível, `.zip` (Windows).
+
+### Ficheiros a alterar/criar
+- `src/styles.css` — CSS do badge.
+- `src/lib/calc/conduit.ts` — tabelas por tipo de cabo.
+- `src/components/calcstudio/ConduitCalculator.tsx` — seletor de tipo.
+- `src/lib/calc/storage.ts` — `project`, guardar/abrir ficheiro.
+- `src/components/calcstudio/CalcStudio.tsx` — botões/modais Obra, Guardar, Abrir.
+- `src/lib/calc/export.ts` — dados da obra nos PDF.
+- `electron/main.cjs`, `package.json`, `vite.config`/build — empacotamento desktop.
