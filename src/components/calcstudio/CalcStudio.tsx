@@ -132,6 +132,21 @@ export default function CalcStudio() {
     setCircuits(balancePhases(panel.circuits));
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function updateProject(patch: Partial<ProjectInfo>) {
+    setState(s => ({ ...s, project: { ...s.project, ...patch } }));
+  }
+
+  function handleOpenFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    loadProjectFile(f)
+      .then(s => { setState(s); setSelectedCircuitId(null); setDraft(emptyDraft()); })
+      .catch(() => alert("Não foi possível abrir o ficheiro de projeto."));
+    e.target.value = "";
+  }
+
   // --- Cálculos derivados ---
   const ctx: FeederContext | null = useMemo(() => {
     if (!panel) return null;
