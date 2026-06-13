@@ -102,7 +102,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   });
 
   autoTable(doc, {
-    startY: 28,
+    startY: tableStartY,
     head: [["#", "Circuito", "Tipo", "Fase", "P(W)", "Cos φ", "L(m)", "S(VA)", "Ib(A)", "Proteção", "Secção", "Iz(A)", "ΔU", "Icc(kA)", "Instalação"]],
     body: rows,
     styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
