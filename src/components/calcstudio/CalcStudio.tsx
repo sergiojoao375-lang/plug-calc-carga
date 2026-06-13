@@ -38,11 +38,12 @@ const emptyDraft = (): Draft => ({
 });
 
 export default function CalcStudio() {
-  const [state, setState] = useState<AppState>({ panels: [], activePanelId: null });
+  const [state, setState] = useState<AppState>({ panels: [], activePanelId: null, project: emptyProject() });
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
   const [showPanelMgr, setShowPanelMgr] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
+  const [showObra, setShowObra] = useState(false);
   const [showConduit, setShowConduit] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>();
 
