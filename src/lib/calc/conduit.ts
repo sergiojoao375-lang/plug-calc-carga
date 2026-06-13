@@ -1,12 +1,62 @@
 // PLUGTECH CalcStudio Pro - Cálculo da secção/diâmetro de tubagem eléctrica
 // Método simplificado por taxa de enchimento (RTIEBT / boas práticas)
 
-// Diâmetro exterior aproximado (mm) de condutor isolado tipo H07V-K por secção (mm²)
-export const CABLE_OD: Record<number, number> = {
-  1.5: 3.0, 2.5: 3.6, 4: 4.0, 6: 4.6, 10: 6.0, 16: 7.0,
-  25: 8.8, 35: 9.6, 50: 11.2, 70: 13.0, 95: 14.8, 120: 16.4,
-  150: 18.0, 185: 20.0, 240: 22.6, 300: 25.0,
+export type CableKind = "H07V-K" | "H07V-R" | "XV" | "RZ1-K" | "XZ1" | "FVV";
+
+export const CABLE_KINDS: { v: CableKind; label: string }[] = [
+  { v: "H07V-K", label: "H07V-K (fio flexível)" },
+  { v: "H07V-R", label: "H07V-R (fio rígido)" },
+  { v: "XV",     label: "XV / VV (cabo PVC)" },
+  { v: "RZ1-K",  label: "RZ1-K (XLPE, isento halogéneo)" },
+  { v: "XZ1",    label: "XZ1 (XLPE, isento halogéneo)" },
+  { v: "FVV",    label: "FVV (multipolar PVC)" },
+];
+
+// Diâmetro exterior aproximado (mm) por tipo de condutor e secção (mm²).
+// Valores médios de catálogo (unipolar, exceto FVV que é multipolar aproximado por veia equivalente).
+export const CABLE_OD_BY_TYPE: Record<CableKind, Record<number, number>> = {
+  "H07V-K": {
+    1.5: 3.0, 2.5: 3.6, 4: 4.0, 6: 4.6, 10: 6.0, 16: 7.0,
+    25: 8.8, 35: 9.6, 50: 11.2, 70: 13.0, 95: 14.8, 120: 16.4,
+    150: 18.0, 185: 20.0, 240: 22.6, 300: 25.0,
+  },
+  "H07V-R": {
+    1.5: 3.0, 2.5: 3.6, 4: 4.1, 6: 4.7, 10: 6.2, 16: 7.3,
+    25: 9.1, 35: 10.0, 50: 11.7, 70: 13.5, 95: 15.4, 120: 17.0,
+    150: 18.6, 185: 20.8, 240: 23.4, 300: 25.8,
+  },
+  "XV": {
+    1.5: 6.0, 2.5: 6.6, 4: 7.2, 6: 7.8, 10: 9.4, 16: 10.6,
+    25: 13.0, 35: 14.2, 50: 16.0, 70: 18.4, 95: 20.8, 120: 22.8,
+    150: 25.0, 185: 27.6, 240: 30.8, 300: 34.0,
+  },
+  "RZ1-K": {
+    1.5: 5.8, 2.5: 6.4, 4: 7.0, 6: 7.6, 10: 9.0, 16: 10.2,
+    25: 12.4, 35: 13.6, 50: 15.4, 70: 17.6, 95: 20.0, 120: 22.0,
+    150: 24.2, 185: 26.8, 240: 30.0, 300: 33.0,
+  },
+  "XZ1": {
+    1.5: 5.8, 2.5: 6.4, 4: 7.0, 6: 7.6, 10: 9.0, 16: 10.2,
+    25: 12.4, 35: 13.6, 50: 15.4, 70: 17.6, 95: 20.0, 120: 22.0,
+    150: 24.2, 185: 26.8, 240: 30.0, 300: 33.0,
+  },
+  "FVV": {
+    1.5: 6.2, 2.5: 6.8, 4: 7.6, 6: 8.4, 10: 10.2, 16: 11.6,
+    25: 14.2, 35: 15.6, 50: 17.8, 70: 20.4, 95: 23.2, 120: 25.6,
+    150: 28.0, 185: 31.0, 240: 34.6, 300: 38.0,
+  },
 };
+
+// Compat: tabela do fio H07V-K (usada por defeito)
+export const CABLE_OD: Record<number, number> = CABLE_OD_BY_TYPE["H07V-K"];
+
+export function odFor(kind: CableKind, section: number): number | undefined {
+  return CABLE_OD_BY_TYPE[kind]?.[section];
+}
+
+export function sectionsFor(kind: CableKind): number[] {
+  return Object.keys(CABLE_OD_BY_TYPE[kind] ?? {}).map(Number).sort((a, b) => a - b);
+}
 
 // Tubos normalizados (diâmetro nominal exterior, mm) e diâmetro interior útil aprox.
 export const STD_CONDUITS: { nominal: number; inner: number }[] = [
@@ -23,6 +73,7 @@ export const STD_CONDUITS: { nominal: number; inner: number }[] = [
 ];
 
 export interface ConduitCable {
+  kind: CableKind; // tipo de condutor/cabo
   section: number; // mm²
   count: number;   // nº de condutores dessa secção
 }
@@ -51,8 +102,8 @@ export function computeConduit(cables: ConduitCable[]): ConduitResult {
   let cableArea = 0;
   for (const c of cables) {
     if (c.count <= 0) continue;
-    const od = CABLE_OD[c.section];
-    if (!od) { errors.push(`Secção ${c.section}mm² sem diâmetro tabelado.`); continue; }
+    const od = odFor(c.kind, c.section);
+    if (!od) { errors.push(`${c.kind} ${c.section}mm² sem diâmetro tabelado.`); continue; }
     const area = Math.PI * (od / 2) ** 2;
     cableArea += area * c.count;
     totalConductors += c.count;
