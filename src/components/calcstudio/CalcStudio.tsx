@@ -9,6 +9,7 @@ import { loadState, saveState, type AppState, type Panel } from "@/lib/calc/stor
 import { exportCSV, exportPDF, exportCascadePDF } from "@/lib/calc/export";
 import { ConduitCalculator } from "./ConduitCalculator";
 import { statusColors, type Status } from "./status";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const CIRCUIT_TYPES: CircuitType[] = ["Iluminacao", "Tomadas", "AC", "Termoacumulador", "PlacaCozinha", "UAC"];
 const SCENARIOS: { v: InstallScenario; label: string }[] = [
@@ -365,17 +366,10 @@ export default function CalcStudio() {
           </div>
         </div>
 
-        {showAbout && (
-          <div className="border-t border-border bg-card px-4 py-3 text-sm">
-            <div className="flex flex-wrap items-center gap-4">
-              <span><b>Desenvolvedor:</b> SérgioTech</span>
-              <span><b>E-mail:</b> sergiojoa931@gmail.com</span>
-              <span><b>WhatsApp:</b> +244 931 728 474</span>
-              <span className="italic text-[color:var(--brand-green)]">"TECNOLOGIA QUE LIGA SOLUÇÕES"</span>
-            </div>
-          </div>
-        )}
       </header>
+
+      <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
+
 
       {/* ===== TABELA CENTRAL (SCROLL VERTICAL) ===== */}
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
@@ -507,4 +501,75 @@ function labelType(t: CircuitType) {
     Iluminacao: "Iluminação", Tomadas: "Tomadas", AC: "Ar Condicionado",
     Termoacumulador: "Termoacumulador", PlacaCozinha: "Placa Cozinha", UAC: "UAC",
   } as Record<CircuitType, string>)[t];
+}
+
+const ABOUT_TOPICS: { title: string; body: string }[] = [
+  {
+    title: "Queda de Tensão (ΔU)",
+    body: "Calculada pelo método das resistências (ρ·L·I/S), somando a queda da linha de interligação e a do circuito. O limite total é 4% (Portaria 850/2015). Os indicadores mudam de cor — verde (OK), amarelo (quase a exceder) e vermelho (crítico) — para avisar antes de ultrapassar.",
+  },
+  {
+    title: "Escolha das Proteções — Coordenação In ≤ Iz (RTIEBT 433)",
+    body: "O calibre do disjuntor (In) nunca pode ser superior à capacidade do cabo (Iz). A app escolhe automaticamente o calibre normalizado ≥ Ib e a menor secção que garante Iz ≥ In e ΔU ≤ 4%. Se forçar manualmente um calibre maior que o cabo suporta, aparece erro a vermelho.",
+  },
+  {
+    title: "Curvas de Disparo (B / C / D)",
+    body: "B — cargas resistivas sem pico de arranque. C — uso geral (tomadas, eletrodomésticos, pequenos motores). D — cargas com forte corrente de arranque (ar condicionado, UAC). A app sugere D para AC/UAC e C para os restantes.",
+  },
+  {
+    title: "Equilíbrio de Fases",
+    body: "As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada). As monofásicas são distribuídas por um algoritmo que coloca cada carga na fase menos carregada, minimizando o desequilíbrio. O indicador fica crítico acima de 15%.",
+  },
+  {
+    title: "Dimensionamento de Cabos",
+    body: "Em Quadro de Distribuição (Q.E.): secções até 95 mm² e calibres até 63 A. Em Quadro Geral (QGE): secções até 400 mm² e calibres até 630 A. A secção é automaticamente aumentada quando a corrente, o Iz ou a queda de tensão o exigem.",
+  },
+  {
+    title: "Corrente de Curto-Circuito (Icc)",
+    body: "Estimada de forma simplificada a partir da impedância acumulada (origem + interligação + circuito). Diminui com o comprimento e aumenta com a secção, permitindo verificar se o poder de corte do disjuntor é suficiente.",
+  },
+  {
+    title: "Corte Geral (Aparelhagem do Quadro)",
+    body: "Dimensionado com fator de 1,25 × Ib total. Até 100 A sugere interruptor; acima sugere fusíveis gG. É apresentado o calibre normalizado e a respetiva capacidade.",
+  },
+  {
+    title: "Tubagem Elétrica",
+    body: "Calculadora acessível pelo botão \"Tubagem\" (ou duplo-clique no logótipo). Usa a taxa máxima de enchimento (53% para 1 condutor, 31% para 2, 40% para 3 ou mais) e sugere o diâmetro nominal do tubo normalizado.",
+  },
+  {
+    title: "Exportação e Relatórios",
+    body: "CSV — lista de circuitos com todos os dados calculados. PDF — relatório do quadro ativo. PDF Cascata — diagrama geral de todos os quadros em cascata, com especificação dos cabos e dados de cada quadro.",
+  },
+];
+
+function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Sobre a PLUGTECH CalcStudio Pro</DialogTitle>
+          <DialogDescription>
+            Software de cálculo de instalações elétricas BT segundo o RTIEBT. Resumo do que a app faz e como decide.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          {ABOUT_TOPICS.map(t => (
+            <div key={t.title} className="rounded-md border border-border bg-card p-3">
+              <div className="mb-1 font-semibold text-[color:var(--brand-green)]">{t.title}</div>
+              <p className="text-muted-foreground">{t.body}</p>
+            </div>
+          ))}
+          <div className="rounded-md border border-[color:var(--brand-blue)]/40 bg-[color:var(--brand-blue)]/5 p-3">
+            <div className="mb-1 font-semibold">Desenvolvedor</div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+              <span><b>SérgioTech</b></span>
+              <span>sergiojoa931@gmail.com</span>
+              <span>WhatsApp: +244 931 728 474</span>
+              <span className="italic text-[color:var(--brand-green)]">"TECNOLOGIA QUE LIGA SOLUÇÕES"</span>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
