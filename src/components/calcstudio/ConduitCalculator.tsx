@@ -1,33 +1,40 @@
 import { useMemo, useState } from "react";
 import {
-  computeConduit, CABLE_OD, STD_CONDUITS,
-  type ConduitCable,
+  computeConduit, STD_CONDUITS, CABLE_KINDS, sectionsFor, odFor,
+  type ConduitCable, type CableKind,
 } from "@/lib/calc/conduit";
-
-const SECTION_OPTIONS = Object.keys(CABLE_OD).map(Number);
 
 interface Row {
   id: string;
+  kind: CableKind;
   section: number;
   count: string;
 }
 
 export function ConduitCalculator({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<Row[]>([
-    { id: crypto.randomUUID(), section: 2.5, count: "3" },
+    { id: crypto.randomUUID(), kind: "H07V-K", section: 2.5, count: "3" },
   ]);
 
   const cables: ConduitCable[] = useMemo(
-    () => rows.map(r => ({ section: r.section, count: parseInt(r.count) || 0 })),
+    () => rows.map(r => ({ kind: r.kind, section: r.section, count: parseInt(r.count) || 0 })),
     [rows],
   );
   const result = useMemo(() => computeConduit(cables), [cables]);
 
   function updateRow(id: string, patch: Partial<Row>) {
-    setRows(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)));
+    setRows(rs => rs.map(r => {
+      if (r.id !== id) return r;
+      const next = { ...r, ...patch };
+      if (patch.kind) {
+        const secs = sectionsFor(patch.kind);
+        if (!secs.includes(next.section)) next.section = secs[0];
+      }
+      return next;
+    }));
   }
   function addRow() {
-    setRows(rs => [...rs, { id: crypto.randomUUID(), section: 2.5, count: "1" }]);
+    setRows(rs => [...rs, { id: crypto.randomUUID(), kind: "H07V-K", section: 2.5, count: "1" }]);
   }
   function removeRow(id: string) {
     setRows(rs => rs.filter(r => r.id !== id));
