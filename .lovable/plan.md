@@ -1,32 +1,66 @@
-# Plano — Correções no CalcStudio
+# Plano — Modal "Sobre" Informativo
 
-Três pedidos do utilizador, todos resolvidos sem alterar o design existente.
+O botão "Sobre" já existe no cabeçalho (`showAbout`), mas apenas exibe contacto do desenvolvedor. Vai ser convertido num **modal de ajuda/documentação** com explicações resumidas de toda a lógica da app.
 
-## 1. In(A) só vai até 63A — permitir calibres maiores (caso QGE)
+## Alterações
 
-Hoje os disjuntores terminais estão limitados a `STD_BREAKERS = [...63]` (em `engine.ts`), por isso o In de um circuito grande (ex.: 80.000 W = 151 A) fica preso em 63 A e aparece a vermelho.
+### 1. Converter `showAbout` de secção colapsável para modal
+- Usar o componente `<Dialog>` do shadcn/ui (já disponível no projeto).
+- O botão "Sobre" no header passa a abrir o modal em vez de expandir inline.
+- Eliminar o bloco inline antigo (linhas 368–377 do `CalcStudio.tsx`).
 
-- Estender `STD_BREAKERS` para incluir calibres de quadro geral: `80, 100, 125, 160, 200, 250, 400, 630`.
-- Adicionar uma marcação de **tipo de quadro** no quadro atual: um seletor "Tipo de Quadro" com opções **Distribuição (Q.E.)** e **Quadro Geral (QGE)**.
-  - Em modo QGE, a escolha de calibre usa a lista completa (até 630 A) e o cálculo da secção usa as `FEEDER_SECTIONS` alargadas (até 400 mm²), evitando o erro de coordenação In > Iz em circuitos de grande potência.
-  - Em modo distribuição, mantém o comportamento atual.
-- O calibre passa a ser corretamente coordenado com a secção alargada, removendo o realce vermelho indevido.
+### 2. Conteúdo do modal (em Português)
+O modal terá uma lista de tópicos, cada um com título e breve descrição:
 
-## 2. Botões não encontrados — Equilíbrio de Fases e Calculadora de Tubagem
+1. **Queda de Tensão (ΔU)**
+   - Cálculo simplificado segundo método das resistências (ρ·L·I/S).
+   - Limite de 4% total (feeder + circuito) imposto pela Portaria 850/2015.
+   - Alertas visuais quando o valor se aproxima ou ultrapassa o limite.
 
-- O botão **"⚡ Equilíbrio de Fases Automático"** existe mas está no fim da linha do formulário (`ml-auto`), podendo ficar fora do ecrã em alguns tamanhos. Vai ser movido para uma barra de ações sempre visível junto aos botões do cabeçalho.
-- A **calculadora de tubagem** só abre com duplo-clique no logótipo (não descoberto). Vai passar a ter um **botão visível "Tubagem"** no cabeçalho, ao lado de CSV/PDF (mantendo também o duplo-clique).
+2. **Coordenação In ≤ Iz (RTIEBT 433)**
+   - O calibre do disjuntor (`In`) não pode ser superior à capacidade do cabo (`Iz`).
+   - A app escolhe automaticamente a secção mínima que garante `Iz ≥ In`.
+   - Se o utilizador forçar um `In` manual maior que `Iz`, aparece erro vermelho.
 
-## 3. Modo trifásico deve dividir as fases igualmente
+3. **Curvas de Proteção (B / C / D)**
+   - **B**: cargas puramente resistivas (iluminação, tomadas).
+   - **C**: cargas mistas (motores pequenos, eletrodomésticos).
+   - **D**: cargas com alto pico de arranque (ar condicionado, UAC).
+   - Sugestão automática: D para AC/UAC; C para os restantes.
 
-Atualmente um circuito trifásico não contribui para o equilíbrio de fases e os totais L1/L2/L3 só somam cargas mono.
+4. **Equilíbrio de Fases**
+   - Cargas trifásicas dividem-se igualmente (P/3 em cada fase).
+   - Cargas monofásicas são distribuídas pelo algoritmo greedy para minimizar o desequilíbrio.
+   - Alerta visual: verde (OK) / amarelo (quase a exceder) / vermelho (crítico >15%).
 
-- Ao calcular o desequilíbrio (`phaseImbalance`) e os totais por fase, as cargas **trifásicas passam a ser distribuídas igualmente** pelas três fases (P/3 em cada L1, L2, L3).
-- O equilíbrio automático continua a distribuir os monofásicos, mas agora sobre uma base que já inclui a parte trifásica equilibrada — refletindo corretamente a carga real por fase no rodapé (L1/L2/L3) e na chip de desequilíbrio.
+5. **Dimensionamento de Secções**
+   - Em quadro de distribuição (QE): secções até 95 mm², calibres até 63 A.
+   - Em quadro geral (QGE): secções até 400 mm², calibres até 630 A.
+   - A secção é subida automaticamente se o ΔU ou In > Iz o exigirem.
 
-## Detalhes técnicos
-- `src/lib/calc/engine.ts`: alargar `STD_BREAKERS`; ajustar `computeCircuit`/`pickBreaker` para usar a lista completa e `FEEDER_SECTIONS` quando o quadro for QGE; atualizar `phaseImbalance` para incluir terço da carga trifásica em cada fase.
-- `src/lib/calc/storage.ts`: adicionar campo `panelKind: "QE" | "QGE"` ao tipo `Panel` (default "QE").
-- `src/components/calcstudio/CalcStudio.tsx`: seletor de tipo de quadro; mover botão de equilíbrio para barra visível; adicionar botão "Tubagem" no cabeçalho.
+6. **Corrente de Curto-Circuito (Icc)**
+   - Cálculo simplificado: Icc terminal diminui com o comprimento e a secção da linha.
+   - Permite verificar se o disjuntor tem capacidade de corte suficiente.
 
-Nenhuma alteração de backend é necessária; tudo é lógica e UI de frontend.
+7. **Aparelhagem Geral (Corte Geral)**
+   - Dimensionado com fator de 1.25 × Ib total.
+   - Acima de 100 A sugere fusíveis gG; abaixo sugere interruptor.
+   - Mostra a capacidade real do dispositivo escolhido.
+
+8. **Tubagem Elétrica**
+   - Calculadora oculta (botão "Tubagem" ou duplo-clique no logo).
+   - Baseada na taxa de enchimento máxima (53% / 31% / 40%) segundo o nº de condutores.
+   - Sugere diâmetro nominal do tubo normalizado.
+
+9. **Exportação**
+   - **CSV**: lista de circuitos com todos os dados calculados.
+   - **PDF**: relatório do quadro ativo com especificações.
+   - **PDF Cascata**: diagrama geral de todos os quadros em cascata com cabos e dados.
+
+10. **Desenvolvedor**
+    - SérgioTech, contacto e slogan (manter info existente).
+
+### 3. Ficheiro a alterar
+- `src/components/calcstudio/CalcStudio.tsx` — substituir o bloco `showAbout` inline pelo componente `<Dialog>` do shadcn, importando-o no topo do ficheiro.
+
+Nenhuma alteração de backend ou motor de cálculo é necessária. Apenas UI e texto informativo.
