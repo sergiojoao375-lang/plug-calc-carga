@@ -595,3 +595,40 @@ function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
     </Dialog>
   );
 }
+
+function ObraDialog({ open, onClose, project, onChange }: {
+  open: boolean; onClose: () => void; project: ProjectInfo; onChange: (p: Partial<ProjectInfo>) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Dados da Obra</DialogTitle>
+          <DialogDescription>
+            Identificação da obra e do técnico responsável. Aparecem nos relatórios em PDF.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Nome da Obra</span>
+            <input value={project.obra} onChange={e => onChange({ obra: e.target.value })}
+              className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5"
+              placeholder="Ex: Edifício Residencial Atlântico" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Engenheiro Responsável</span>
+            <input value={project.engenheiro} onChange={e => onChange({ engenheiro: e.target.value })}
+              className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5"
+              placeholder="Ex: Eng.º Sérgio João" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Nº de Carteira / Cédula Profissional</span>
+            <input value={project.carteira} onChange={e => onChange({ carteira: e.target.value })}
+              className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5"
+              placeholder="Ex: 12345" />
+          </label>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
