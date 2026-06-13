@@ -49,7 +49,7 @@ function header(doc: jsPDF, title: string, logo?: string) {
   doc.setTextColor(0);
 }
 
-export async function exportPDF(panels: Panel[], activeId: string | null, opts?: { logoDataUrl?: string }) {
+export async function exportPDF(panels: Panel[], activeId: string | null, opts?: { logoDataUrl?: string; project?: ProjectInfo }) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
   const panel = panels.find(p => p.id === activeId) ?? panels[0];
@@ -57,12 +57,23 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
 
   header(doc, `Quadro: ${panel.name}`, opts?.logoDataUrl);
 
+  const pLine = projectLine(opts?.project);
+  let infoY = 24;
+  if (pLine) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(pLine, 10, infoY);
+    doc.setFont("helvetica", "normal");
+    infoY += 5;
+  }
   // Info do quadro
   doc.setFontSize(9);
   doc.text(
     `Origem: ${panel.origin} | Tensão: ${panel.voltageMono}/${panel.voltageTri} V | Icc origem: ${panel.iccOriginKA} kA | Cabo: ${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`,
-    10, 24
+    10, infoY
   );
+  const tableStartY = infoY + 4;
+
 
   // Calcular para tabela
   const totalIb = panel.circuits.reduce((acc, c) => {
