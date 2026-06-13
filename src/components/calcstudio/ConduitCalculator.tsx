@@ -59,6 +59,16 @@ export function ConduitCalculator({ onClose }: { onClose: () => void }) {
         <div className="space-y-2">
           {rows.map(r => (
             <div key={r.id} className="flex items-end gap-2">
+              <label className="w-44 text-[10px] uppercase tracking-wider text-muted-foreground">
+                Tipo de cabo
+                <select
+                  value={r.kind}
+                  onChange={e => updateRow(r.id, { kind: e.target.value as CableKind })}
+                  className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm text-foreground"
+                >
+                  {CABLE_KINDS.map(k => <option key={k.v} value={k.v}>{k.label}</option>)}
+                </select>
+              </label>
               <label className="flex-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                 Secção do condutor
                 <select
@@ -66,10 +76,10 @@ export function ConduitCalculator({ onClose }: { onClose: () => void }) {
                   onChange={e => updateRow(r.id, { section: Number(e.target.value) })}
                   className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm text-foreground"
                 >
-                  {SECTION_OPTIONS.map(s => <option key={s} value={s}>{s} mm² (Ø ext. {CABLE_OD[s]} mm)</option>)}
+                  {sectionsFor(r.kind).map(s => <option key={s} value={s}>{s} mm² (Ø ext. {odFor(r.kind, s)} mm)</option>)}
                 </select>
               </label>
-              <label className="w-28 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <label className="w-24 text-[10px] uppercase tracking-wider text-muted-foreground">
                 Nº condutores
                 <input
                   type="number" min="1"
@@ -82,6 +92,7 @@ export function ConduitCalculator({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
+
 
         <button onClick={addRow} className="mt-3 rounded-md border border-[color:var(--brand-green)]/50 px-3 py-1.5 text-sm text-[color:var(--brand-green)] hover:bg-[color:var(--brand-green)]/10">
           + Adicionar condutor
