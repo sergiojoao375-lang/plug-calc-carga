@@ -117,14 +117,14 @@ export default function CalcStudio() {
       iccOriginKA: panel?.iccOriginKA ?? 6, voltageMono: 230, voltageTri: 400,
       phase: "Tri", cosphi: 0.95, circuits: [],
     };
-    setState(s => ({ panels: [...s.panels, np], activePanelId: id }));
+    setState(s => ({ ...s, panels: [...s.panels, np], activePanelId: id }));
   }
 
   function deletePanel() {
     if (!panel || state.panels.length <= 1) return;
     if (!confirm(`Eliminar o quadro ${panel.name}?`)) return;
     const rem = state.panels.filter(p => p.id !== panel.id);
-    setState({ panels: rem, activePanelId: rem[0]?.id ?? null });
+    setState(s => ({ ...s, panels: rem, activePanelId: rem[0]?.id ?? null }));
   }
 
   function doBalance() {
