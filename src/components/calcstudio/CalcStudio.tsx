@@ -366,17 +366,10 @@ export default function CalcStudio() {
           </div>
         </div>
 
-        {showAbout && (
-          <div className="border-t border-border bg-card px-4 py-3 text-sm">
-            <div className="flex flex-wrap items-center gap-4">
-              <span><b>Desenvolvedor:</b> SérgioTech</span>
-              <span><b>E-mail:</b> sergiojoa931@gmail.com</span>
-              <span><b>WhatsApp:</b> +244 931 728 474</span>
-              <span className="italic text-[color:var(--brand-green)]">"TECNOLOGIA QUE LIGA SOLUÇÕES"</span>
-            </div>
-          </div>
-        )}
       </header>
+
+      <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
+
 
       {/* ===== TABELA CENTRAL (SCROLL VERTICAL) ===== */}
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
