@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LogoST } from "./Logo";
 import {
   type Circuit, type Material, type Phase, type InstallScenario, type CircuitType,
   computeCircuit, feederDeltaU, phaseImbalance, balancePhases, pickMainDevice,
   FEEDER_SECTIONS, type FeederContext,
 } from "@/lib/calc/engine";
-import { loadState, saveState, type AppState, type Panel } from "@/lib/calc/storage";
+import { loadState, saveState, emptyProject, saveProjectFile, loadProjectFile, type AppState, type Panel, type ProjectInfo } from "@/lib/calc/storage";
 import { exportCSV, exportPDF, exportCascadePDF } from "@/lib/calc/export";
 import { ConduitCalculator } from "./ConduitCalculator";
 import { statusColors, type Status } from "./status";
@@ -38,11 +38,12 @@ const emptyDraft = (): Draft => ({
 });
 
 export default function CalcStudio() {
-  const [state, setState] = useState<AppState>({ panels: [], activePanelId: null });
+  const [state, setState] = useState<AppState>({ panels: [], activePanelId: null, project: emptyProject() });
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
   const [showPanelMgr, setShowPanelMgr] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
+  const [showObra, setShowObra] = useState(false);
   const [showConduit, setShowConduit] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>();
 
@@ -116,19 +117,34 @@ export default function CalcStudio() {
       iccOriginKA: panel?.iccOriginKA ?? 6, voltageMono: 230, voltageTri: 400,
       phase: "Tri", cosphi: 0.95, circuits: [],
     };
-    setState(s => ({ panels: [...s.panels, np], activePanelId: id }));
+    setState(s => ({ ...s, panels: [...s.panels, np], activePanelId: id }));
   }
 
   function deletePanel() {
     if (!panel || state.panels.length <= 1) return;
     if (!confirm(`Eliminar o quadro ${panel.name}?`)) return;
     const rem = state.panels.filter(p => p.id !== panel.id);
-    setState({ panels: rem, activePanelId: rem[0]?.id ?? null });
+    setState(s => ({ ...s, panels: rem, activePanelId: rem[0]?.id ?? null }));
   }
 
   function doBalance() {
     if (!panel) return;
     setCircuits(balancePhases(panel.circuits));
+  }
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function updateProject(patch: Partial<ProjectInfo>) {
+    setState(s => ({ ...s, project: { ...s.project, ...patch } }));
+  }
+
+  function handleOpenFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    loadProjectFile(f)
+      .then(s => { setState(s); setSelectedCircuitId(null); setDraft(emptyDraft()); })
+      .catch(() => alert("Não foi possível abrir o ficheiro de projeto."));
+    e.target.value = "";
   }
 
   // --- Cálculos derivados ---
@@ -210,9 +226,13 @@ export default function CalcStudio() {
             <button onClick={() => setShowPanelMgr(s => !s)} title="Configuração do quadro" className="rounded-md border border-border px-2 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">⚙</button>
             <button onClick={doBalance} title="Distribuir cargas igualmente pelas fases" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">⚡ Equilíbrio Fases</button>
             <button onClick={() => setShowConduit(true)} title="Calculadora de secção de tubagem" className="rounded-md border border-[color:var(--brand-green)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-green)] hover:bg-[color:var(--brand-green)]/10">Tubagem</button>
+            <button onClick={() => setShowObra(true)} title="Dados da obra e responsável" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">📋 Obra</button>
+            <button onClick={() => saveProjectFile(state)} title="Guardar projeto em ficheiro" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">💾 Guardar</button>
+            <button onClick={() => fileInputRef.current?.click()} title="Abrir projeto de ficheiro" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">📂 Abrir</button>
+            <input ref={fileInputRef} type="file" accept="application/json,.json" className="hidden" onChange={handleOpenFile} />
             <button onClick={() => exportCSV(panel)} className="rounded-md border border-[color:var(--brand-blue)]/50 px-3 py-1.5 text-sm hover:bg-[color:var(--brand-blue)]/10">CSV</button>
-            <button onClick={() => exportPDF(state.panels, panel.id, { logoDataUrl })} className="rounded-md bg-[color:var(--brand-blue)] px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:brightness-110">PDF</button>
-            <button onClick={() => exportCascadePDF(state.panels, { logoDataUrl })} title="Diagrama geral em cascata de todos os quadros" className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">PDF Cascata</button>
+            <button onClick={() => exportPDF(state.panels, panel.id, { logoDataUrl, project: state.project })} className="rounded-md bg-[color:var(--brand-blue)] px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:brightness-110">PDF</button>
+            <button onClick={() => exportCascadePDF(state.panels, { logoDataUrl, project: state.project })} title="Diagrama geral em cascata de todos os quadros" className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">PDF Cascata</button>
             <button onClick={() => setShowAbout(s => !s)} className="rounded-md border border-border px-2 py-1.5 text-sm">Sobre</button>
           </div>
         </div>
@@ -369,6 +389,8 @@ export default function CalcStudio() {
       </header>
 
       <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
+
+      <ObraDialog open={showObra} onClose={() => setShowObra(false)} project={state.project} onChange={updateProject} />
 
 
       {/* ===== TABELA CENTRAL (SCROLL VERTICAL) ===== */}
@@ -568,6 +590,43 @@ function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
               <span className="italic text-[color:var(--brand-green)]">"TECNOLOGIA QUE LIGA SOLUÇÕES"</span>
             </div>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ObraDialog({ open, onClose, project, onChange }: {
+  open: boolean; onClose: () => void; project: ProjectInfo; onChange: (p: Partial<ProjectInfo>) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Dados da Obra</DialogTitle>
+          <DialogDescription>
+            Identificação da obra e do técnico responsável. Aparecem nos relatórios em PDF.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Nome da Obra</span>
+            <input value={project.obra} onChange={e => onChange({ obra: e.target.value })}
+              className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5"
+              placeholder="Ex: Edifício Residencial Atlântico" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Engenheiro Responsável</span>
+            <input value={project.engenheiro} onChange={e => onChange({ engenheiro: e.target.value })}
+              className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5"
+              placeholder="Ex: Eng.º Sérgio João" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Nº de Carteira / Cédula Profissional</span>
+            <input value={project.carteira} onChange={e => onChange({ carteira: e.target.value })}
+              className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5"
+              placeholder="Ex: 12345" />
+          </label>
         </div>
       </DialogContent>
     </Dialog>

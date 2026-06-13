@@ -1,9 +1,19 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Panel } from "./storage";
+import type { Panel, ProjectInfo } from "./storage";
 import { computeCircuit, feederDeltaU, phaseImbalance, pickMainDevice, type FeederContext } from "./engine";
 
 const FOOTER = "SérgioTech • sergiojoa931@gmail.com • WhatsApp +244 931 728 474 • TECNOLOGIA QUE LIGA SOLUÇÕES";
+
+function projectLine(p?: ProjectInfo): string | null {
+  if (!p) return null;
+  const parts: string[] = [];
+  if (p.obra) parts.push(`Obra: ${p.obra}`);
+  if (p.engenheiro) parts.push(`Eng.º Responsável: ${p.engenheiro}`);
+  if (p.carteira) parts.push(`Carteira: ${p.carteira}`);
+  return parts.length ? parts.join("  |  ") : null;
+}
+
 
 function addFooter(doc: jsPDF) {
   const pageCount = doc.getNumberOfPages();
@@ -39,7 +49,7 @@ function header(doc: jsPDF, title: string, logo?: string) {
   doc.setTextColor(0);
 }
 
-export async function exportPDF(panels: Panel[], activeId: string | null, opts?: { logoDataUrl?: string }) {
+export async function exportPDF(panels: Panel[], activeId: string | null, opts?: { logoDataUrl?: string; project?: ProjectInfo }) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
   const panel = panels.find(p => p.id === activeId) ?? panels[0];
@@ -47,12 +57,23 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
 
   header(doc, `Quadro: ${panel.name}`, opts?.logoDataUrl);
 
+  const pLine = projectLine(opts?.project);
+  let infoY = 24;
+  if (pLine) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(pLine, 10, infoY);
+    doc.setFont("helvetica", "normal");
+    infoY += 5;
+  }
   // Info do quadro
   doc.setFontSize(9);
   doc.text(
     `Origem: ${panel.origin} | Tensão: ${panel.voltageMono}/${panel.voltageTri} V | Icc origem: ${panel.iccOriginKA} kA | Cabo: ${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`,
-    10, 24
+    10, infoY
   );
+  const tableStartY = infoY + 4;
+
 
   // Calcular para tabela
   const totalIb = panel.circuits.reduce((acc, c) => {
@@ -81,7 +102,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   });
 
   autoTable(doc, {
-    startY: 28,
+    startY: tableStartY,
     head: [["#", "Circuito", "Tipo", "Fase", "P(W)", "Cos φ", "L(m)", "S(VA)", "Ib(A)", "Proteção", "Secção", "Iz(A)", "ΔU", "Icc(kA)", "Instalação"]],
     body: rows,
     styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
@@ -217,11 +238,12 @@ function drawBlockDiagram(doc: jsPDF, panel: Panel) {
 }
 
 // ===== Diagrama geral em cascata de TODOS os quadros =====
-export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: string }) {
+export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: string; project?: ProjectInfo }) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   if (!panels.length) return;
 
   header(doc, "Diagrama Geral em Cascata", opts?.logoDataUrl);
+
 
   const w = doc.internal.pageSize.getWidth();
   const h = doc.internal.pageSize.getHeight();
@@ -234,6 +256,14 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
   });
 
   let y = 26;
+  const pLineC = projectLine(opts?.project);
+  if (pLineC) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(pLineC, 10, y);
+    doc.setFont("helvetica", "normal");
+    y += 6;
+  }
   const boxH = 30;
   const gapY = 14;
   const leftX = 16;
