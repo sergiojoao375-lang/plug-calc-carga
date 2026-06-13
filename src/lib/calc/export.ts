@@ -238,11 +238,12 @@ function drawBlockDiagram(doc: jsPDF, panel: Panel) {
 }
 
 // ===== Diagrama geral em cascata de TODOS os quadros =====
-export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: string }) {
+export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: string; project?: ProjectInfo }) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   if (!panels.length) return;
 
   header(doc, "Diagrama Geral em Cascata", opts?.logoDataUrl);
+
 
   const w = doc.internal.pageSize.getWidth();
   const h = doc.internal.pageSize.getHeight();
