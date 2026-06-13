@@ -1,9 +1,19 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Panel } from "./storage";
+import type { Panel, ProjectInfo } from "./storage";
 import { computeCircuit, feederDeltaU, phaseImbalance, pickMainDevice, type FeederContext } from "./engine";
 
 const FOOTER = "SérgioTech • sergiojoa931@gmail.com • WhatsApp +244 931 728 474 • TECNOLOGIA QUE LIGA SOLUÇÕES";
+
+function projectLine(p?: ProjectInfo): string | null {
+  if (!p) return null;
+  const parts: string[] = [];
+  if (p.obra) parts.push(`Obra: ${p.obra}`);
+  if (p.engenheiro) parts.push(`Eng.º Responsável: ${p.engenheiro}`);
+  if (p.carteira) parts.push(`Carteira: ${p.carteira}`);
+  return parts.length ? parts.join("  |  ") : null;
+}
+
 
 function addFooter(doc: jsPDF) {
   const pageCount = doc.getNumberOfPages();
