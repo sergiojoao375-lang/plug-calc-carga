@@ -390,6 +390,8 @@ export default function CalcStudio() {
 
       <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
 
+      <ObraDialog open={showObra} onClose={() => setShowObra(false)} project={state.project} onChange={updateProject} />
+
 
       {/* ===== TABELA CENTRAL (SCROLL VERTICAL) ===== */}
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
