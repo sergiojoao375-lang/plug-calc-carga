@@ -311,6 +311,7 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
       iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
       feederSection: panel.feederSection, feederLength: panel.feederLength,
       feederDeltaU: 0, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+      isQGE: panel.panelKind === "QGE",
     };
     const rows = panel.circuits.map((c, i) => {
       const r = computeCircuit(c, ctx);
