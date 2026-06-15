@@ -96,7 +96,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
       String(i + 1), c.name, c.type, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
       (c.power).toFixed(0), c.cosphi.toFixed(2), c.length.toFixed(1),
       r.s.toFixed(0), r.ib.toFixed(2), `${r.in}A ${r.curve}`,
-      `${r.section} mm²`, r.iz.toFixed(0), (fdU + r.deltaU).toFixed(2) + "%",
+      `${r.parallel > 1 ? r.parallel + "×" : ""}${r.section} mm²${c.material === "Al" ? " Al" : ""}`, r.iz.toFixed(0), (fdU + r.deltaU).toFixed(2) + "%",
       r.iccTerm.toFixed(2), c.scenario,
     ];
   });
