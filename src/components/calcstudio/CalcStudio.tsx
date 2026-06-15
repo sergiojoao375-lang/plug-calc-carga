@@ -561,7 +561,7 @@ const ABOUT_TOPICS: { title: string; body: string }[] = [
   },
   {
     title: "Dimensionamento de Cabos",
-    body: "Em Quadro de Distribuição (Q.E.): secções até 95 mm² e calibres até 63 A. Em Quadro Geral (QGE): secções até 400 mm² e calibres até 630 A. A secção é automaticamente aumentada quando a corrente, o Iz ou a queda de tensão o exigem.",
+    body: "Em Quadro de Distribuição (Q.E.): secções até 95 mm² e calibres até 63 A, em cobre. Em Quadro Geral (QGE): calibres até 1600 A, condutores em cobre ou alumínio (LSV/LV, LSVAV/LXAV) e, quando uma única secção não chega, o app dimensiona automaticamente vários condutores em paralelo por fase (sugerindo barramento). A secção é aumentada automaticamente quando a corrente, o Iz ou a queda de tensão o exigem.",
   },
   {
     title: "Corrente de Curto-Circuito (Icc)",
