@@ -351,7 +351,7 @@ export function exportCSV(panel: Panel) {
     lines.push([
       i + 1, c.name, c.type, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
       c.power, c.cosphi.toFixed(2).replace(".", ","), c.length, r.s.toFixed(0),
-      r.ib.toFixed(2).replace(".", ","), r.in, r.curve, r.section,
+      r.ib.toFixed(2).replace(".", ","), r.in, r.curve, r.section, r.parallel, c.material === "Al" ? "Al" : "Cu",
       r.iz.toFixed(0), r.deltaU.toFixed(2).replace(".", ","),
       r.iccTerm.toFixed(2).replace(".", ","), c.scenario,
     ].join(sep));
