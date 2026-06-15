@@ -342,6 +342,7 @@ export function exportCSV(panel: Panel) {
     iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
     feederSection: panel.feederSection, feederLength: panel.feederLength,
     feederDeltaU: 0, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+    isQGE: panel.panelKind === "QGE",
   };
   const headers = ["#","Circuito","Tipo","Fase","P(W)","CosPhi","L(m)","S(VA)","Ib(A)","In(A)","Curva","Seccao(mm2)","Iz(A)","DeltaU(%)","Icc(kA)","Instalacao"];
   const lines = [headers.join(sep)];
