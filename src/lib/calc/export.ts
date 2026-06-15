@@ -89,6 +89,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
     iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
     feederSection: panel.feederSection, feederLength: panel.feederLength,
     feederDeltaU: fdU, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+    isQGE: panel.panelKind === "QGE",
   };
   const rows = panel.circuits.map((c, i) => {
     const r = computeCircuit(c, ctx);
@@ -96,7 +97,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
       String(i + 1), c.name, c.type, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
       (c.power).toFixed(0), c.cosphi.toFixed(2), c.length.toFixed(1),
       r.s.toFixed(0), r.ib.toFixed(2), `${r.in}A ${r.curve}`,
-      `${r.section} mm²`, r.iz.toFixed(0), (fdU + r.deltaU).toFixed(2) + "%",
+      `${r.parallel > 1 ? r.parallel + "×" : ""}${r.section} mm²${c.material === "Al" ? " Al" : ""}`, r.iz.toFixed(0), (fdU + r.deltaU).toFixed(2) + "%",
       r.iccTerm.toFixed(2), c.scenario,
     ];
   });
@@ -144,8 +145,9 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   const matBreakers = new Map<string, number>();
   panel.circuits.forEach(c => {
     const r = computeCircuit(c, ctx);
-    const k = `Cu ${r.section}mm²`;
-    matCables.set(k, (matCables.get(k) || 0) + c.length);
+    const mat = c.material === "Al" ? "Al" : "Cu";
+    const k = `${mat} ${r.parallel > 1 ? r.parallel + "×" : ""}${r.section}mm²`;
+    matCables.set(k, (matCables.get(k) || 0) + c.length * r.parallel);
     const b = `Disjuntor ${r.in}A Curva ${r.curve} (${c.phase})`;
     matBreakers.set(b, (matBreakers.get(b) || 0) + 1);
   });
@@ -309,11 +311,12 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
       iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
       feederSection: panel.feederSection, feederLength: panel.feederLength,
       feederDeltaU: 0, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+      isQGE: panel.panelKind === "QGE",
     };
     const rows = panel.circuits.map((c, i) => {
       const r = computeCircuit(c, ctx);
       return [String(i + 1), c.name, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
-        `${c.power}W`, `${r.in}A ${r.curve}`, `${r.section}mm²`, `${c.length}m`];
+        `${c.power}W`, `${r.in}A ${r.curve}`, `${r.parallel > 1 ? r.parallel + "×" : ""}${r.section}mm²${c.material === "Al" ? " Al" : ""}`, `${c.length}m`];
     });
     autoTable(doc, {
       startY: y,
@@ -339,15 +342,16 @@ export function exportCSV(panel: Panel) {
     iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
     feederSection: panel.feederSection, feederLength: panel.feederLength,
     feederDeltaU: 0, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+    isQGE: panel.panelKind === "QGE",
   };
-  const headers = ["#","Circuito","Tipo","Fase","P(W)","CosPhi","L(m)","S(VA)","Ib(A)","In(A)","Curva","Seccao(mm2)","Iz(A)","DeltaU(%)","Icc(kA)","Instalacao"];
+  const headers = ["#","Circuito","Tipo","Fase","P(W)","CosPhi","L(m)","S(VA)","Ib(A)","In(A)","Curva","Seccao(mm2)","Condutores/fase","Material","Iz(A)","DeltaU(%)","Icc(kA)","Instalacao"];
   const lines = [headers.join(sep)];
   panel.circuits.forEach((c, i) => {
     const r = computeCircuit(c, ctx);
     lines.push([
       i + 1, c.name, c.type, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
       c.power, c.cosphi.toFixed(2).replace(".", ","), c.length, r.s.toFixed(0),
-      r.ib.toFixed(2).replace(".", ","), r.in, r.curve, r.section,
+      r.ib.toFixed(2).replace(".", ","), r.in, r.curve, r.section, r.parallel, c.material === "Al" ? "Al" : "Cu",
       r.iz.toFixed(0), r.deltaU.toFixed(2).replace(".", ","),
       r.iccTerm.toFixed(2).replace(".", ","), c.scenario,
     ].join(sep));

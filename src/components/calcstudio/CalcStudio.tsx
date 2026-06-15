@@ -19,6 +19,8 @@ const SCENARIOS: { v: InstallScenario; label: string }[] = [
   { v: "ArLivre",   label: "Ao Ar Livre (E/F)" },
 ];
 const CABLE_TYPES = ["H07V-K", "H07V-R", "XV", "XZ1", "FVV"];
+const CABLE_TYPES_CU = CABLE_TYPES;
+const CABLE_TYPES_AL = ["LSV / LV", "LSVAV / LXAV"];
 
 interface Draft {
   id?: string;
@@ -29,12 +31,13 @@ interface Draft {
   cosphi: string;
   type: CircuitType;
   cable: string;
+  material: Material;
   scenario: InstallScenario;
   phase: Phase;
 }
 const emptyDraft = (): Draft => ({
   name: "", power: "", powerUnit: "W", length: "", cosphi: "0.95",
-  type: "Tomadas", cable: "H07V-K", scenario: "Embutido", phase: "Mono",
+  type: "Tomadas", cable: "H07V-K", material: "Cu", scenario: "Embutido", phase: "Mono",
 });
 
 export default function CalcStudio() {
@@ -79,7 +82,7 @@ export default function CalcStudio() {
       id: draft.id ?? crypto.randomUUID(),
       name: draft.name,
       power: draft.powerUnit === "kW" ? power * 1000 : power,
-      length, cosphi, type: draft.type, cable: draft.cable,
+      length, cosphi, type: draft.type, cable: draft.cable, material: draft.material,
       scenario: draft.scenario, phase: draft.phase,
     };
     if (draft.id) {
@@ -97,7 +100,7 @@ export default function CalcStudio() {
       power: String(c.power >= 1000 ? c.power / 1000 : c.power),
       powerUnit: c.power >= 1000 ? "kW" : "W",
       length: String(c.length), cosphi: String(c.cosphi),
-      type: c.type, cable: c.cable, scenario: c.scenario, phase: c.phase,
+      type: c.type, cable: c.cable, material: c.material ?? "Cu", scenario: c.scenario, phase: c.phase,
     });
     setSelectedCircuitId(c.id);
   }
@@ -353,10 +356,23 @@ export default function CalcStudio() {
                 {CIRCUIT_TYPES.map(t => <option key={t} value={t}>{labelType(t)}</option>)}
               </select>
             </Field>
-            <Field label="Tipo de Cabo (Cobre)" w="130px">
+            {panel.panelKind === "QGE" && (
+              <Field label="Material" w="120px">
+                <select value={draft.material} onChange={e => {
+                  const material = e.target.value as Material;
+                  const list = material === "Al" ? CABLE_TYPES_AL : CABLE_TYPES_CU;
+                  setDraft(d => ({ ...d, material, cable: list.includes(d.cable) ? d.cable : list[0] }));
+                }}
+                  className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm">
+                  <option value="Cu">Cobre</option>
+                  <option value="Al">Alumínio</option>
+                </select>
+              </Field>
+            )}
+            <Field label={`Tipo de Cabo (${draft.material === "Al" ? "Alumínio" : "Cobre"})`} w="150px">
               <select value={draft.cable} onChange={e => setDraft(d => ({ ...d, cable: e.target.value }))}
                 className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm">
-                {CABLE_TYPES.map(t => <option key={t}>{t}</option>)}
+                {(panel.panelKind === "QGE" && draft.material === "Al" ? CABLE_TYPES_AL : CABLE_TYPES_CU).map(t => <option key={t}>{t}</option>)}
               </select>
             </Field>
             <Field label="Cenário de Instalação" w="220px">
@@ -424,7 +440,7 @@ export default function CalcStudio() {
                     <td className="px-2 py-1.5">{r.ib.toFixed(2)}</td>
                     <td className={`px-2 py-1.5 ${hasErr ? "bg-destructive/30 text-destructive-foreground" : ""}`}>{r.in}</td>
                     <td className="px-2 py-1.5">{r.curve}</td>
-                    <td className="px-2 py-1.5">{r.section} mm²</td>
+                    <td className="px-2 py-1.5">{r.parallel > 1 ? `${r.parallel}×` : ""}{r.section} mm²{c.material === "Al" ? " Al" : ""}</td>
                     <td className="px-2 py-1.5">{r.iz}</td>
                     <td className={`px-2 py-1.5 ${(ctx!.feederDeltaU + r.deltaU) > 4 ? "bg-warning/30" : ""}`}>{(ctx!.feederDeltaU + r.deltaU).toFixed(2)}</td>
                     <td className="px-2 py-1.5">{r.iccTerm.toFixed(2)}</td>
@@ -449,7 +465,8 @@ export default function CalcStudio() {
             <KV k="S" v={`${selected.r.s.toFixed(0)} VA`} />
             <KV k="Ib" v={`${selected.r.ib.toFixed(2)} A`} />
             <KV k="In sugerido" v={`${selected.r.in} A — Curva ${selected.r.curve}`} />
-            <KV k="Secção" v={`${selected.r.section} mm² (Cu)`} />
+            <KV k="Secção" v={`${selected.r.parallel > 1 ? `${selected.r.parallel}×` : ""}${selected.r.section} mm² (${selected.c.material === "Al" ? "Al" : "Cu"})`} />
+            {selected.r.parallel > 1 && <KV k="Condutores/fase" v={String(selected.r.parallel)} />}
             <KV k="Iz" v={`${selected.r.iz} A`} />
             <KV k="ΔU total" v={`${(ctx!.feederDeltaU + selected.r.deltaU).toFixed(2)} %`} />
             <KV k="Icc terminal" v={`${selected.r.iccTerm.toFixed(2)} kA`} />
@@ -544,7 +561,7 @@ const ABOUT_TOPICS: { title: string; body: string }[] = [
   },
   {
     title: "Dimensionamento de Cabos",
-    body: "Em Quadro de Distribuição (Q.E.): secções até 95 mm² e calibres até 63 A. Em Quadro Geral (QGE): secções até 400 mm² e calibres até 630 A. A secção é automaticamente aumentada quando a corrente, o Iz ou a queda de tensão o exigem.",
+    body: "Em Quadro de Distribuição (Q.E.): secções até 95 mm² e calibres até 63 A, em cobre. Em Quadro Geral (QGE): calibres até 1600 A, condutores em cobre ou alumínio (LSV/LV, LSVAV/LXAV) e, quando uma única secção não chega, o app dimensiona automaticamente vários condutores em paralelo por fase (sugerindo barramento). A secção é aumentada automaticamente quando a corrente, o Iz ou a queda de tensão o exigem.",
   },
   {
     title: "Corrente de Curto-Circuito (Icc)",
