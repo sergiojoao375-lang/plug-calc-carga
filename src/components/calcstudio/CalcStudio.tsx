@@ -465,7 +465,8 @@ export default function CalcStudio() {
             <KV k="S" v={`${selected.r.s.toFixed(0)} VA`} />
             <KV k="Ib" v={`${selected.r.ib.toFixed(2)} A`} />
             <KV k="In sugerido" v={`${selected.r.in} A — Curva ${selected.r.curve}`} />
-            <KV k="Secção" v={`${selected.r.section} mm² (Cu)`} />
+            <KV k="Secção" v={`${selected.r.parallel > 1 ? `${selected.r.parallel}×` : ""}${selected.r.section} mm² (${selected.c.material === "Al" ? "Al" : "Cu"})`} />
+            {selected.r.parallel > 1 && <KV k="Condutores/fase" v={String(selected.r.parallel)} />}
             <KV k="Iz" v={`${selected.r.iz} A`} />
             <KV k="ΔU total" v={`${(ctx!.feederDeltaU + selected.r.deltaU).toFixed(2)} %`} />
             <KV k="Icc terminal" v={`${selected.r.iccTerm.toFixed(2)} kA`} />
