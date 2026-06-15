@@ -72,7 +72,7 @@ export function izFor(section: number, scenario: InstallScenario, mat: Material 
 }
 
 // Calibres normalizados de aparelho de corte geral (disjuntor/interruptor) em A
-export const MAIN_DEVICE_RATINGS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250];
+export const MAIN_DEVICE_RATINGS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1600];
 
 export function pickMainDevice(currentA: number): number {
   for (const r of MAIN_DEVICE_RATINGS) {
