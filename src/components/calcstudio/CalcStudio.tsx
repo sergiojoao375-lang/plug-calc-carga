@@ -19,6 +19,8 @@ const SCENARIOS: { v: InstallScenario; label: string }[] = [
   { v: "ArLivre",   label: "Ao Ar Livre (E/F)" },
 ];
 const CABLE_TYPES = ["H07V-K", "H07V-R", "XV", "XZ1", "FVV"];
+const CABLE_TYPES_CU = CABLE_TYPES;
+const CABLE_TYPES_AL = ["LSV / LV", "LSVAV / LXAV"];
 
 interface Draft {
   id?: string;
