@@ -144,8 +144,9 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   const matBreakers = new Map<string, number>();
   panel.circuits.forEach(c => {
     const r = computeCircuit(c, ctx);
-    const k = `Cu ${r.section}mm²`;
-    matCables.set(k, (matCables.get(k) || 0) + c.length);
+    const mat = c.material === "Al" ? "Al" : "Cu";
+    const k = `${mat} ${r.parallel > 1 ? r.parallel + "×" : ""}${r.section}mm²`;
+    matCables.set(k, (matCables.get(k) || 0) + c.length * r.parallel);
     const b = `Disjuntor ${r.in}A Curva ${r.curve} (${c.phase})`;
     matBreakers.set(b, (matBreakers.get(b) || 0) + 1);
   });
