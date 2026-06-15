@@ -70,6 +70,21 @@ export const STD_CONDUITS: { nominal: number; inner: number }[] = [
   { nominal: 75, inner: 63.0 },
   { nominal: 90, inner: 75.8 },
   { nominal: 110, inner: 92.8 },
+  { nominal: 125, inner: 105.6 },
+  { nominal: 140, inner: 118.0 },
+  { nominal: 160, inner: 135.4 },
+  { nominal: 180, inner: 152.0 },
+  { nominal: 200, inner: 169.0 },
+  { nominal: 225, inner: 190.2 },
+  { nominal: 250, inner: 211.0 },
+  { nominal: 280, inner: 236.6 },
+  { nominal: 315, inner: 266.2 },
+  { nominal: 355, inner: 300.0 },
+  { nominal: 400, inner: 338.0 },
+  { nominal: 450, inner: 380.4 },
+  { nominal: 500, inner: 422.6 },
+  { nominal: 560, inner: 473.4 },
+  { nominal: 630, inner: 532.6 },
 ];
 
 export interface ConduitCable {
