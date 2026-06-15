@@ -356,10 +356,23 @@ export default function CalcStudio() {
                 {CIRCUIT_TYPES.map(t => <option key={t} value={t}>{labelType(t)}</option>)}
               </select>
             </Field>
-            <Field label="Tipo de Cabo (Cobre)" w="130px">
+            {panel.panelKind === "QGE" && (
+              <Field label="Material" w="120px">
+                <select value={draft.material} onChange={e => {
+                  const material = e.target.value as Material;
+                  const list = material === "Al" ? CABLE_TYPES_AL : CABLE_TYPES_CU;
+                  setDraft(d => ({ ...d, material, cable: list.includes(d.cable) ? d.cable : list[0] }));
+                }}
+                  className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm">
+                  <option value="Cu">Cobre</option>
+                  <option value="Al">Alumínio</option>
+                </select>
+              </Field>
+            )}
+            <Field label={`Tipo de Cabo (${draft.material === "Al" ? "Alumínio" : "Cobre"})`} w="150px">
               <select value={draft.cable} onChange={e => setDraft(d => ({ ...d, cable: e.target.value }))}
                 className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm">
-                {CABLE_TYPES.map(t => <option key={t}>{t}</option>)}
+                {(panel.panelKind === "QGE" && draft.material === "Al" ? CABLE_TYPES_AL : CABLE_TYPES_CU).map(t => <option key={t}>{t}</option>)}
               </select>
             </Field>
             <Field label="Cenário de Instalação" w="220px">
