@@ -31,12 +31,13 @@ interface Draft {
   cosphi: string;
   type: CircuitType;
   cable: string;
+  material: Material;
   scenario: InstallScenario;
   phase: Phase;
 }
 const emptyDraft = (): Draft => ({
   name: "", power: "", powerUnit: "W", length: "", cosphi: "0.95",
-  type: "Tomadas", cable: "H07V-K", scenario: "Embutido", phase: "Mono",
+  type: "Tomadas", cable: "H07V-K", material: "Cu", scenario: "Embutido", phase: "Mono",
 });
 
 export default function CalcStudio() {
