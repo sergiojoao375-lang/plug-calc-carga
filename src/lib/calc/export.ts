@@ -316,7 +316,7 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
     const rows = panel.circuits.map((c, i) => {
       const r = computeCircuit(c, ctx);
       return [String(i + 1), c.name, c.phase + (c.phaseAssign ? "/" + c.phaseAssign : ""),
-        `${c.power}W`, `${r.in}A ${r.curve}`, `${r.section}mm²`, `${c.length}m`];
+        `${c.power}W`, `${r.in}A ${r.curve}`, `${r.parallel > 1 ? r.parallel + "×" : ""}${r.section}mm²${c.material === "Al" ? " Al" : ""}`, `${c.length}m`];
     });
     autoTable(doc, {
       startY: y,
