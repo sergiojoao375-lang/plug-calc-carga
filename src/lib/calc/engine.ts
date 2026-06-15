@@ -165,6 +165,7 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A). Aumente a secção/nº de condutores ou reduza o calibre.`);
   if (inBreaker < ib) errors.push(`Calibre insuficiente: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A).`);
   if (parallel > 1) warnings.push(`Necessários ${parallel} condutores em paralelo por fase (${parallel}×${chosen} mm² ${mat}). Considere barramento como alternativa.`);
+  if (!coordinated) warnings.push(`Não foi possível coordenar totalmente (Iz/ΔU) — verifique calibre, secção e nº de condutores.`);
   const totalDU = ctx.feederDeltaU + deltaU;
   if (totalDU > 4.0) warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% > 4% (Portaria 850/2015).`);
 
