@@ -440,7 +440,7 @@ export default function CalcStudio() {
                     <td className="px-2 py-1.5">{r.ib.toFixed(2)}</td>
                     <td className={`px-2 py-1.5 ${hasErr ? "bg-destructive/30 text-destructive-foreground" : ""}`}>{r.in}</td>
                     <td className="px-2 py-1.5">{r.curve}</td>
-                    <td className="px-2 py-1.5">{r.section} mm²</td>
+                    <td className="px-2 py-1.5">{r.parallel > 1 ? `${r.parallel}×` : ""}{r.section} mm²{c.material === "Al" ? " Al" : ""}</td>
                     <td className="px-2 py-1.5">{r.iz}</td>
                     <td className={`px-2 py-1.5 ${(ctx!.feederDeltaU + r.deltaU) > 4 ? "bg-warning/30" : ""}`}>{(ctx!.feederDeltaU + r.deltaU).toFixed(2)}</td>
                     <td className="px-2 py-1.5">{r.iccTerm.toFixed(2)}</td>
