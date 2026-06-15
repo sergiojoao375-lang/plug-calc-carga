@@ -82,7 +82,7 @@ export default function CalcStudio() {
       id: draft.id ?? crypto.randomUUID(),
       name: draft.name,
       power: draft.powerUnit === "kW" ? power * 1000 : power,
-      length, cosphi, type: draft.type, cable: draft.cable,
+      length, cosphi, type: draft.type, cable: draft.cable, material: draft.material,
       scenario: draft.scenario, phase: draft.phase,
     };
     if (draft.id) {
