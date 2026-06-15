@@ -90,8 +90,9 @@ export interface CalcResult {
   ib: number;      // A
   in: number;      // A (calibre)
   curve: "B" | "C" | "D";
-  section: number; // mm²
-  iz: number;      // A
+  section: number; // mm² (por condutor)
+  parallel: number; // nº de condutores em paralelo por fase
+  iz: number;      // A (Iz total = Iz_secção × paralelos)
   deltaU: number;  // %
   iccTerm: number; // kA
   modules: number; // módulos DIN
