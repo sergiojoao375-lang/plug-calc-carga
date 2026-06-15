@@ -131,49 +131,54 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   const s = (c.power * loadFactor) / cos;
   const ib = c.phase === "Tri" ? s / (Math.sqrt(3) * ctx.voltageTri) : s / ctx.voltageMono;
 
+  // Material do condutor (Cu por defeito; Al permitido em alimentações QGE)
+  const mat: Material = c.material ?? "Cu";
   // Secção mínima por tipo
   const minSec = c.type === "Iluminacao" ? 1.5 : 2.5;
-  // Em QGE permite secções alargadas (até 400mm²) e calibres maiores
+  // Em QGE permite secções alargadas e condutores em paralelo
   const sectionList = ctx.isQGE ? FEEDER_SECTIONS : SECTIONS;
   const breakerList = ctx.isQGE ? STD_BREAKERS_QGE : STD_BREAKERS;
+  const maxParallel = ctx.isQGE ? 4 : 1;
   // 1) Calibre alvo: menor disjuntor normalizado >= Ib (ou o escolhido pelo utilizador)
   const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) ?? breakerList[breakerList.length - 1]);
-  // 2) Escolher AUTOMATICAMENTE a menor secção que coordena (Iz >= In, RTIEBT 433) e ΔU <= 4%
-  //    Resolve sozinho o caso In > Iz subindo a secção do cabo até a capacidade chegar.
+  // 2) Escolher AUTOMATICAMENTE a menor secção que coordena (Iz >= In, RTIEBT 433) e ΔU <= 4%.
+  //    Tenta primeiro um único condutor; só depois recorre a condutores em paralelo por fase.
   let chosen = minSec;
-  let iz = izFor(chosen, c.scenario, "Cu");
-  let deltaU = deltaUPercent(c, chosen, "Cu", ctx);
+  let parallel = 1;
+  let iz = izFor(minSec, c.scenario, mat);
+  let deltaU = deltaUPercent(c, minSec, mat, ctx);
   let coordinated = false;
-  for (const sec of sectionList) {
-    if (sec < minSec) continue;
-    const izTry = izFor(sec, c.scenario, "Cu");
-    const dU = deltaUPercent(c, sec, "Cu", ctx);
-    chosen = sec; iz = izTry; deltaU = dU;
-    if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) { coordinated = true; break; }
+  outer:
+  for (let p = 1; p <= maxParallel; p++) {
+    for (const sec of sectionList) {
+      if (sec < minSec) continue;
+      const izTry = izFor(sec, c.scenario, mat) * p;
+      const dU = deltaUPercent(c, sec * p, mat, ctx);
+      chosen = sec; parallel = p; iz = izTry; deltaU = dU;
+      if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) { coordinated = true; break outer; }
+    }
   }
 
   const inBreaker = targetBreaker;
   const curve = c.curve ?? suggestCurve(c.type);
 
-  if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A). Aumente a secção ou reduza o calibre.`);
+  if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A). Aumente a secção/nº de condutores ou reduza o calibre.`);
   if (inBreaker < ib) errors.push(`Calibre insuficiente: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A).`);
-  if (!coordinated && inBreaker <= iz) {
-    // secção subida para coordenar mas ΔU pode estar no limite — apenas informativo
-  }
+  if (parallel > 1) warnings.push(`Necessários ${parallel} condutores em paralelo por fase (${parallel}×${chosen} mm² ${mat}). Considere barramento como alternativa.`);
   const totalDU = ctx.feederDeltaU + deltaU;
   if (totalDU > 4.0) warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% > 4% (Portaria 850/2015).`);
 
   // ICC terminal (simplificado): Icc_term = U / (sqrt(3?)*Z_total)
   const Zup = ctx.iccOriginKA > 0 ? (ctx.voltageTri / (Math.sqrt(3) * ctx.iccOriginKA * 1000)) : 0.001;
   const Zfeeder = (RHO[ctx.feederMaterial] * ctx.feederLength) / Math.max(1, ctx.feederSection);
-  const Zline = (RHO.Cu * c.length) / Math.max(1, chosen);
+  const Zline = (RHO[mat] * c.length) / Math.max(1, chosen * parallel);
   const Ztot = Zup + Zfeeder + Zline;
   const Ucalc = c.phase === "Tri" ? ctx.voltageTri / Math.sqrt(3) : ctx.voltageMono;
   const iccTerm = Ztot > 0 ? (Ucalc / Ztot) / 1000 : 0;
 
   const modules = c.phase === "Tri" ? 3 : (c.type === "AC" || c.type === "UAC" ? 2 : 1);
 
-  return { s, ib, in: inBreaker, curve, section: chosen, iz, deltaU, iccTerm, modules, errors, warnings };
+  return { s, ib, in: inBreaker, curve, section: chosen, parallel, iz, deltaU, iccTerm, modules, errors, warnings };
 }
 
 export function deltaUPercent(c: Circuit, section: number, mat: Material, ctx: FeederContext): number {
