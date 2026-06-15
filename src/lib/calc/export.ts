@@ -89,6 +89,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
     iccOriginKA: panel.iccOriginKA, feederMaterial: panel.feederMaterial,
     feederSection: panel.feederSection, feederLength: panel.feederLength,
     feederDeltaU: fdU, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
+    isQGE: panel.panelKind === "QGE",
   };
   const rows = panel.circuits.map((c, i) => {
     const r = computeCircuit(c, ctx);
