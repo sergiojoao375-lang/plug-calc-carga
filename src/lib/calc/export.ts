@@ -344,7 +344,7 @@ export function exportCSV(panel: Panel) {
     feederDeltaU: 0, voltageMono: panel.voltageMono, voltageTri: panel.voltageTri,
     isQGE: panel.panelKind === "QGE",
   };
-  const headers = ["#","Circuito","Tipo","Fase","P(W)","CosPhi","L(m)","S(VA)","Ib(A)","In(A)","Curva","Seccao(mm2)","Iz(A)","DeltaU(%)","Icc(kA)","Instalacao"];
+  const headers = ["#","Circuito","Tipo","Fase","P(W)","CosPhi","L(m)","S(VA)","Ib(A)","In(A)","Curva","Seccao(mm2)","Condutores/fase","Material","Iz(A)","DeltaU(%)","Icc(kA)","Instalacao"];
   const lines = [headers.join(sep)];
   panel.circuits.forEach((c, i) => {
     const r = computeCircuit(c, ctx);
