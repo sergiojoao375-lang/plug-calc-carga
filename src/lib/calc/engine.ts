@@ -27,6 +27,7 @@ export interface Circuit {
   cosphi: number;
   type: CircuitType;
   cable: string;        // ex: "H07V-K" — informativo
+  material?: Material;  // material do condutor (Cu por defeito; Al em alimentações QGE)
   scenario: InstallScenario;
   phase: Phase;
   phaseAssign?: "L1" | "L2" | "L3"; // apenas mono
@@ -35,8 +36,8 @@ export interface Circuit {
 }
 
 export const STD_BREAKERS = [6, 10, 16, 20, 25, 32, 40, 50, 63];
-// Calibres alargados para Quadro Geral (QGE)
-export const STD_BREAKERS_QGE = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630];
+// Calibres alargados para Quadro Geral (QGE) — até 1600 A
+export const STD_BREAKERS_QGE = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1600];
 
 // Tabela simplificada Iz (A) por secção (mm²) Cu — valores conservadores médios
 const IZ_CU: Record<number, Partial<Record<InstallScenario, number>>> = {
