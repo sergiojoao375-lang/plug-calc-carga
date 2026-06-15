@@ -100,7 +100,7 @@ export default function CalcStudio() {
       power: String(c.power >= 1000 ? c.power / 1000 : c.power),
       powerUnit: c.power >= 1000 ? "kW" : "W",
       length: String(c.length), cosphi: String(c.cosphi),
-      type: c.type, cable: c.cable, scenario: c.scenario, phase: c.phase,
+      type: c.type, cable: c.cable, material: c.material ?? "Cu", scenario: c.scenario, phase: c.phase,
     });
     setSelectedCircuitId(c.id);
   }
