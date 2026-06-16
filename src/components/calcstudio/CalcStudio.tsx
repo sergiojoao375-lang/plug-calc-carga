@@ -227,7 +227,7 @@ export default function CalcStudio() {
             <button onClick={createNewPanel} className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">+ Novo Quadro</button>
             <button onClick={deletePanel} className="rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10">Eliminar</button>
             <button onClick={() => setShowPanelMgr(s => !s)} title="Configuração do quadro" className="rounded-md border border-border px-2 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">⚙</button>
-            <button onClick={doBalance} title="Distribuir cargas igualmente pelas fases" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">⚡ Equilíbrio Fases</button>
+            
             <button onClick={() => setShowConduit(true)} title="Calculadora de secção de tubagem" className="rounded-md border border-[color:var(--brand-green)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-green)] hover:bg-[color:var(--brand-green)]/10">Tubagem</button>
             <button onClick={() => setShowObra(true)} title="Dados da obra e responsável" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">📋 Obra</button>
             <button onClick={() => saveProjectFile(state)} title="Guardar projeto em ficheiro" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">💾 Guardar</button>
