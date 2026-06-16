@@ -257,7 +257,7 @@ export default function CalcStudio() {
                   <option value="PT/QGE" />
                   {state.panels.filter(p => p.id !== panel.id).map(p => <option key={p.id} value={p.name} />)}
                 </datalist>
-                <div class="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <label>Icc origem (kA)
                     <select value={panel.iccOriginKA}
                       onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
