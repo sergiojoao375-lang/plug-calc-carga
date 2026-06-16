@@ -290,11 +290,7 @@ export default function CalcStudio() {
                     {FEEDER_SECTIONS.map(s => <option key={s} value={s}>{s} mm²</option>)}
                   </select>
                   <input type="number" step="0.1" value={panel.feederLength} onChange={e => updatePanel({ feederLength: +e.target.value || 0 })}
-                    className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" placeholder="L (m)" />
-                  <select value={panel.phase} onChange={e => updatePanel({ phase: e.target.value as Phase })}
-                    className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                    <option value="Mono">Mono</option><option value="Tri">Trifásico</option>
-                  </select>
+                    className="col-span-2 rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" placeholder="L (m)" />
                 </div>
                 {ctx && (
                   <div className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${statusColors(feederStatus).chip}`}>
