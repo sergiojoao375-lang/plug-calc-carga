@@ -227,7 +227,7 @@ export default function CalcStudio() {
             <button onClick={createNewPanel} className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">+ Novo Quadro</button>
             <button onClick={deletePanel} className="rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10">Eliminar</button>
             <button onClick={() => setShowPanelMgr(s => !s)} title="Configuração do quadro" className="rounded-md border border-border px-2 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">⚙</button>
-            <button onClick={doBalance} title="Distribuir cargas igualmente pelas fases" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">⚡ Equilíbrio Fases</button>
+            
             <button onClick={() => setShowConduit(true)} title="Calculadora de secção de tubagem" className="rounded-md border border-[color:var(--brand-green)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-green)] hover:bg-[color:var(--brand-green)]/10">Tubagem</button>
             <button onClick={() => setShowObra(true)} title="Dados da obra e responsável" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">📋 Obra</button>
             <button onClick={() => saveProjectFile(state)} title="Guardar projeto em ficheiro" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">💾 Guardar</button>
@@ -259,14 +259,20 @@ export default function CalcStudio() {
                 </datalist>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <label>Icc origem (kA)
-                    <input type="number" step="0.1" value={panel.iccOriginKA}
-                      onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) || 0 })}
-                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
+                    <select value={panel.iccOriginKA}
+                      onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
+                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
+                      {[3, 6, 10, 15, 20, 25].map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
                   </label>
                   <label>V mono / tri
                     <div className="mt-1 flex gap-1">
-                      <input type="number" value={panel.voltageMono} onChange={e => updatePanel({ voltageMono: +e.target.value || 230 })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
-                      <input type="number" value={panel.voltageTri}  onChange={e => updatePanel({ voltageTri: +e.target.value || 400 })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
+                      <select value={panel.voltageMono} onChange={e => updatePanel({ voltageMono: +e.target.value })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
+                        {[230].map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                      <select value={panel.voltageTri} onChange={e => updatePanel({ voltageTri: +e.target.value })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
+                        {[400].map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
                     </div>
                   </label>
                 </div>
