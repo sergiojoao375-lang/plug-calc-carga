@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LogoST } from "./Logo";
 import {
   type Circuit, type Material, type Phase, type InstallScenario, type CircuitType,
-  computeCircuit, feederDeltaU, phaseImbalance, balancePhases, pickMainDevice,
+  computeCircuit, feederDeltaU, phaseImbalance, balancePhases, pickMainDevice, panelIccKA,
   FEEDER_SECTIONS, type FeederContext,
 } from "@/lib/calc/engine";
 import { loadState, saveState, emptyProject, saveProjectFile, loadProjectFile, type AppState, type Panel, type ProjectInfo } from "@/lib/calc/storage";
@@ -262,18 +262,16 @@ export default function CalcStudio() {
                     <select value={panel.iccOriginKA}
                       onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
                       className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                      {[3, 6, 10, 15, 20, 25].map(v => <option key={v} value={v}>{v}</option>)}
+                      {[3, 6, 10, 15, 20, 25, 35, 36, 50, 65, 70, 100].map(v => <option key={v} value={v}>{v}</option>)}
                     </select>
                   </label>
-                  <label>V mono / tri
-                    <div className="mt-1 flex gap-1">
-                      <select value={panel.voltageMono} onChange={e => updatePanel({ voltageMono: +e.target.value })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                        {[230].map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                      <select value={panel.voltageTri} onChange={e => updatePanel({ voltageTri: +e.target.value })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                        {[400].map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                    </div>
+                  <label>Sistema
+                    <select value={panel.phase}
+                      onChange={e => updatePanel({ phase: e.target.value as Phase, voltageMono: 230, voltageTri: 400 })}
+                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
+                      <option value="Mono">Monofásico (230 V)</option>
+                      <option value="Tri">Trifásico (400 V)</option>
+                    </select>
                   </label>
                 </div>
               </div>
@@ -292,11 +290,7 @@ export default function CalcStudio() {
                     {FEEDER_SECTIONS.map(s => <option key={s} value={s}>{s} mm²</option>)}
                   </select>
                   <input type="number" step="0.1" value={panel.feederLength} onChange={e => updatePanel({ feederLength: +e.target.value || 0 })}
-                    className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" placeholder="L (m)" />
-                  <select value={panel.phase} onChange={e => updatePanel({ phase: e.target.value as Phase })}
-                    className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                    <option value="Mono">Mono</option><option value="Tri">Trifásico</option>
-                  </select>
+                    className="col-span-2 rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" placeholder="L (m)" />
                 </div>
                 {ctx && (
                   <div className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${statusColors(feederStatus).chip}`}>
@@ -325,6 +319,9 @@ export default function CalcStudio() {
                       <option value="QGE">Quadro Geral (QGE)</option>
                     </select>
                   </label>
+                </div>
+                <div className="rounded-md border border-[color:var(--brand-green)]/40 bg-[color:var(--surface-2)] px-2 py-1 text-[10px] font-semibold text-[color:var(--brand-green)]">
+                  Icc no barramento: {panelIccKA(panel).toFixed(1)} kA
                 </div>
               </div>
             </div>

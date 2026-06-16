@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { Panel, ProjectInfo } from "./storage";
-import { computeCircuit, feederDeltaU, phaseImbalance, pickMainDevice, type FeederContext } from "./engine";
+import { computeCircuit, feederDeltaU, phaseImbalance, pickMainDevice, panelIccKA, type FeederContext } from "./engine";
 
 const FOOTER = "SérgioTech • sergiojoa931@gmail.com • WhatsApp +244 931 728 474 • TECNOLOGIA QUE LIGA SOLUÇÕES";
 
@@ -69,7 +69,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   // Info do quadro
   doc.setFontSize(9);
   doc.text(
-    `Origem: ${panel.origin} | Tensão: ${panel.voltageMono}/${panel.voltageTri} V | Icc origem: ${panel.iccOriginKA} kA | Cabo: ${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`,
+    `Origem: ${panel.origin} | Sistema: ${panel.phase === "Tri" ? "Trifásico 400 V" : "Monofásico 230 V"} | Icc origem: ${panel.iccOriginKA} kA | Icc barramento: ${panelIccKA(panel).toFixed(1)} kA | Cabo: ${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`,
     10, infoY
   );
   const tableStartY = infoY + 4;
@@ -291,7 +291,7 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.text(`Origem: ${panel.origin}`, leftX + 4, y + 14);
-    doc.text(`Alim.: ${panel.phase} ${panel.voltageMono}/${panel.voltageTri}V · Icc ${panel.iccOriginKA}kA`, leftX + 4, y + 19);
+    doc.text(`Alim.: ${panel.phase} ${panel.voltageMono}/${panel.voltageTri}V · Icc orig ${panel.iccOriginKA}kA · Icc barr. ${panelIccKA(panel).toFixed(1)}kA`, leftX + 4, y + 19);
 
     // Corte geral do quadro com capacidade
     const totalP = panel.circuits.reduce((a, c) => a + c.power, 0);
@@ -359,6 +359,9 @@ export function exportCSV(panel: Panel) {
   lines.push("");
   lines.push(`Quadro${sep}${panel.name}`);
   lines.push(`Origem${sep}${panel.origin}`);
+  lines.push(`Sistema${sep}${panel.phase === "Tri" ? "Trifasico 400V" : "Monofasico 230V"}`);
+  lines.push(`Icc origem (kA)${sep}${panel.iccOriginKA}`);
+  lines.push(`Icc barramento (kA)${sep}${panelIccKA(panel).toFixed(1).replace(".", ",")}`);
   lines.push(`Cabo interligação${sep}${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`);
 
   const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });

@@ -230,6 +230,25 @@ export function balancePhases(circuits: Circuit[]): Circuit[] {
   return updated;
 }
 
+// Icc presumido no barramento do quadro atual (a jusante da linha de interligação)
+export function panelIccKA(panel: {
+  iccOriginKA: number; feederMaterial: Material; feederSection: number; feederLength: number;
+  voltageMono: number; voltageTri: number; phase: Phase;
+}): number {
+  const isTri = panel.phase === "Tri";
+  // Tensão de fase (V) para o cálculo da impedância de defeito
+  const Uphase = isTri ? panel.voltageTri / Math.sqrt(3) : panel.voltageMono;
+  // Impedância a montante a partir do Icc de origem
+  const Zup = panel.iccOriginKA > 0
+    ? Uphase / (panel.iccOriginKA * 1000)
+    : 0.001;
+  // Impedância do cabo de interligação (ida+volta simplificada via ρ)
+  const Zfeeder = (RHO[panel.feederMaterial] * panel.feederLength) / Math.max(1, panel.feederSection);
+  const Ztot = Zup + Zfeeder;
+  const icc = Ztot > 0 ? (Uphase / Ztot) / 1000 : 0;
+  return Math.round(icc * 10) / 10;
+}
+
 export function phaseImbalance(circuits: Circuit[]): { L1: number; L2: number; L3: number; pct: number } {
   const s = { L1: 0, L2: 0, L3: 0 };
   // Cargas trifásicas distribuídas igualmente pelas 3 fases
