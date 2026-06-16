@@ -291,7 +291,7 @@ export async function exportCascadePDF(panels: Panel[], opts?: { logoDataUrl?: s
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.text(`Origem: ${panel.origin}`, leftX + 4, y + 14);
-    doc.text(`Alim.: ${panel.phase} ${panel.voltageMono}/${panel.voltageTri}V · Icc ${panel.iccOriginKA}kA`, leftX + 4, y + 19);
+    doc.text(`Alim.: ${panel.phase} ${panel.voltageMono}/${panel.voltageTri}V · Icc orig ${panel.iccOriginKA}kA · Icc barr. ${panelIccKA(panel).toFixed(1)}kA`, leftX + 4, y + 19);
 
     // Corte geral do quadro com capacidade
     const totalP = panel.circuits.reduce((a, c) => a + c.power, 0);
