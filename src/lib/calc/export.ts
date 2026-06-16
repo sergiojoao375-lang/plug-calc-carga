@@ -69,7 +69,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   // Info do quadro
   doc.setFontSize(9);
   doc.text(
-    `Origem: ${panel.origin} | Tensão: ${panel.voltageMono}/${panel.voltageTri} V | Icc origem: ${panel.iccOriginKA} kA | Cabo: ${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`,
+    `Origem: ${panel.origin} | Sistema: ${panel.phase === "Tri" ? "Trifásico 400 V" : "Monofásico 230 V"} | Icc origem: ${panel.iccOriginKA} kA | Icc barramento: ${panelIccKA(panel).toFixed(1)} kA | Cabo: ${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`,
     10, infoY
   );
   const tableStartY = infoY + 4;
