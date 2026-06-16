@@ -359,6 +359,9 @@ export function exportCSV(panel: Panel) {
   lines.push("");
   lines.push(`Quadro${sep}${panel.name}`);
   lines.push(`Origem${sep}${panel.origin}`);
+  lines.push(`Sistema${sep}${panel.phase === "Tri" ? "Trifasico 400V" : "Monofasico 230V"}`);
+  lines.push(`Icc origem (kA)${sep}${panel.iccOriginKA}`);
+  lines.push(`Icc barramento (kA)${sep}${panelIccKA(panel).toFixed(1).replace(".", ",")}`);
   lines.push(`Cabo interligação${sep}${panel.feederMaterial} ${panel.feederSection}mm² x ${panel.feederLength}m`);
 
   const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
