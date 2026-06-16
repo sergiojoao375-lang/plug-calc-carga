@@ -257,23 +257,21 @@ export default function CalcStudio() {
                   <option value="PT/QGE" />
                   {state.panels.filter(p => p.id !== panel.id).map(p => <option key={p.id} value={p.name} />)}
                 </datalist>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div class="grid grid-cols-2 gap-2 text-xs">
                   <label>Icc origem (kA)
                     <select value={panel.iccOriginKA}
                       onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
                       className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                      {[3, 6, 10, 15, 20, 25].map(v => <option key={v} value={v}>{v}</option>)}
+                      {[3, 6, 10, 15, 20, 25, 35, 36, 50, 65, 70, 100].map(v => <option key={v} value={v}>{v}</option>)}
                     </select>
                   </label>
-                  <label>V mono / tri
-                    <div className="mt-1 flex gap-1">
-                      <select value={panel.voltageMono} onChange={e => updatePanel({ voltageMono: +e.target.value })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                        {[230].map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                      <select value={panel.voltageTri} onChange={e => updatePanel({ voltageTri: +e.target.value })} className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                        {[400].map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                    </div>
+                  <label>Sistema
+                    <select value={panel.phase}
+                      onChange={e => updatePanel({ phase: e.target.value as Phase, voltageMono: 230, voltageTri: 400 })}
+                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
+                      <option value="Mono">Monofásico (230 V)</option>
+                      <option value="Tri">Trifásico (400 V)</option>
+                    </select>
                   </label>
                 </div>
               </div>
