@@ -322,6 +322,7 @@ export default function CalcStudio() {
                 </div>
                 <div className="rounded-md border border-[color:var(--brand-green)]/40 bg-[color:var(--surface-2)] px-2 py-1 text-[10px] font-semibold text-[color:var(--brand-green)]">
                   Icc no barramento: {panelIccKA(panel).toFixed(1)} kA
+                </div>
               </div>
             </div>
           </div>
