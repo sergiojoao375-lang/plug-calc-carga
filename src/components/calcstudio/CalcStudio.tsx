@@ -667,8 +667,17 @@ function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
         <div className="space-y-3 text-sm">
           {ABOUT_TOPICS.map(t => (
             <div key={t.title} className="rounded-md border border-border bg-card p-3">
-              <div className="mb-1 font-semibold text-[color:var(--brand-green)]">{t.title}</div>
-              <p className="text-muted-foreground">{t.body}</p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold text-[color:var(--brand-green)]">{t.title}</div>
+                {t.ref && (
+                  <span className="rounded-full border border-[color:var(--brand-blue)]/40 bg-[color:var(--brand-blue)]/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[color:var(--brand-blue)]">
+                    {t.ref}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-2">
+                {t.blocks.map((b, i) => <AboutBlockView key={i} block={b} />)}
+              </div>
             </div>
           ))}
           <div className="rounded-md border border-[color:var(--brand-blue)]/40 bg-[color:var(--brand-blue)]/5 p-3">
