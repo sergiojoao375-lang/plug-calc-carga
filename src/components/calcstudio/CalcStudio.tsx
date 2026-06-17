@@ -654,6 +654,56 @@ const ABOUT_TOPICS: AboutTopic[] = [
   },
 ];
 
+function AboutBlockView({ block }: { block: AboutBlock }) {
+  if (block.kind === "text") {
+    return <p className="text-muted-foreground">{block.text}</p>;
+  }
+  if (block.kind === "note") {
+    return (
+      <p className="rounded-md border border-[color:var(--brand-blue)]/30 bg-[color:var(--brand-blue)]/5 px-3 py-2 text-xs italic text-muted-foreground">
+        {block.text}
+      </p>
+    );
+  }
+  if (block.kind === "formula") {
+    return (
+      <div className="rounded-md border border-border bg-[color:var(--surface-2)] p-3 font-mono text-[13px]">
+        {block.lines.map((l, i) => (
+          <div key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 py-0.5">
+            <span className="text-foreground">{l.expr}</span>
+            {l.note && <span className="text-[11px] text-muted-foreground">{l.note}</span>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // table
+  return (
+    <div className="overflow-hidden rounded-md border border-border">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="bg-[color:var(--surface-2)] text-muted-foreground">
+            {block.head.map((h, i) => (
+              <th key={i} className="px-3 py-1.5 text-left font-medium">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map((r, i) => (
+            <tr key={i} className="border-t border-border">
+              {r.map((c, j) => (
+                <td key={j} className={`px-3 py-1.5 ${j === 0 ? "text-foreground" : "font-mono text-muted-foreground"}`}>{c}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+
+
 function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
