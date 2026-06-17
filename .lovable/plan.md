@@ -1,49 +1,51 @@
-# Documentação técnica na modal "Sobre"
+# Alinhar a secção "Sobre" ao cálculo real
 
-Transformar a modal "Sobre" (atualmente uma lista simples de parágrafos em `ABOUT_TOPICS`) numa documentação técnica completa e educativa, com fórmulas em blocos de destaque (fundo escuro, tipografia monoespaçada clara), tabelas de constantes e referências normativas (RTIEBT / IEC), mantendo o tema dark moderno da app.
+Verifiquei o motor de cálculo (`engine.ts`, `conduit.ts`) contra o texto da modal "Sobre". A maioria está correta; há 3 pontos onde a documentação descreve algo diferente do que o código realmente faz. Como a app é uma ferramenta de cálculo, a documentação deve ser factualmente fiel ao que corre. Este plano corrige **apenas o texto/tabelas do "Sobre"** — nenhum resultado de cálculo muda.
 
-## O que muda
+## O que está correto (mantém-se)
 
-Apenas apresentação/conteúdo. Nenhuma alteração à lógica de cálculo (`engine.ts`, `conduit.ts`) — só documentamos o que já existe.
+- Potência Aparente `S = P/cosφ`
+- Corrente `Ib` mono/tri
+- Coordenação `Ib ≤ In ≤ Iz`
+- Queda de Tensão (fórmulas + ρ a 70 °C: Cu 0,0225 · Al 0,036)
+- Tubagem (taxas 53/31/40 %, áreas, secção interior)
+- Equilíbrio de Fases
 
-Ficheiro alterado: `src/components/calcstudio/CalcStudio.tsx`
-- Substituir a estrutura `ABOUT_TOPICS` (title + body de texto) por uma estrutura de blocos mais rica que suporte: parágrafos, fórmulas em destaque, tabelas de constantes e badges de referência normativa.
-- Reescrever o `AboutDialog` para renderizar esses blocos com Tailwind, usando tokens semânticos do tema (sem cores hardcoded). Manter o cartão do Desenvolvedor no fim.
+## Correções a aplicar
 
-## Estrutura visual de cada tópico
+Ficheiro: `src/components/calcstudio/CalcStudio.tsx` (constante `ABOUT_TOPICS`).
 
-```text
-┌─ TÍTULO (verde da marca) ───────── [badge: RTIEBT 433] ─┐
-│  Explicação em texto                                     │
-│  ┌─ bloco fórmula (fundo escuro, mono) ──────────────┐  │
-│  │  S = P / cos φ            [VA]                     │  │
-│  └───────────────────────────────────────────────────┘  │
-│  (opcional) tabela de constantes                         │
-└──────────────────────────────────────────────────────────┘
-```
+### 1. Tópico 5 — Curto-Circuito (Icc)
 
-- Blocos de fórmula: `bg-[color:var(--surface-2)]`/`bg-card` escuro, `font-mono`, borda subtil, espaçamento confortável.
-- Badges normativos: pill pequena com `--brand-blue`.
-- Tabelas de constantes: `<table>` simples com cabeçalho `muted`.
+A tabela atual lista constantes que o código **não usa** (ρ a 20 °C 0,018/0,028 e reactância x = 0,08 Ω/km com soma vetorial). O motor real usa:
+- as mesmas resistividades a 70 °C do resto da app (`RHO`: Cu 0,0225 · Al 0,036);
+- soma **escalar** de impedâncias, **sem** componente reativa;
+- impedância acumulada: `Z_total = Z_rede + Z_interligação + Z_circuito`.
 
-## Conteúdo dos tópicos
+Alterações:
+- Substituir a tabela de constantes "20 °C + reactância" por uma tabela fiel: ρ a 70 °C (Cu 0,0225 · Al 0,036 Ω·mm²/m), U0 = 230 V (fase).
+- Substituir a fórmula vetorial `Z_total = √[(Z_rede+R)²+X²]` por:
+  - `Z_rede = U0 / Icc_origem`
+  - `Z_cabo = ρ · L / S`
+  - `Z_total = Z_rede + Z_interligação + Z_circuito`
+  - `Icc_final = U0 / Z_total` (→ kA)
+- Reescrever a nota: deixar claro que a app usa um modelo de impedância acumulada simplificado (resistivo, conservador) inspirado no IEC 60909, sem indução de reactância — em vez de afirmar constantes que não são usadas.
 
-1. **Potência Aparente (S)** — `S = P / cos φ` (VA). Impacto total da carga reativa+ativa.
-2. **Corrente de Projeto (Ib)** — Mono (230V): `Ib = P / (V · cos φ)`; Tri (400V): `Ib = P / (√3 · V · cos φ)` (A).
-3. **Coordenação de Proteções** — regra de ouro `Ib ≤ In ≤ Iz`; badge RTIEBT 433 / IEC 60364.
-4. **Queda de Tensão (ΔU%)** — Mono `ΔU = 2·ρ·L·Ib·cos φ / S`; Tri `ΔU = √3·ρ·L·Ib·cos φ / S`; `ΔU% = ΔU/V · 100`. Tabela de resistividades (ρ a 70°C): Cu 0,0225 · Al 0,036 Ω·mm²/m. Limites: 4% terminais, 1,5% interligação.
-5. **Atenuação de Curto-Circuito (Icc)** — explicação + **Método das Impedâncias (IEC 60909)** com os 4 passos em blocos de fórmula:
-   - `Z_rede = U0 / Icc_origem`
-   - `R_cabo = ρ·L / S` · `X_cabo = x·L`
-   - `Z_total = √[(Z_rede + R_cabo)² + (X_cabo)²]`
-   - `Icc_final = U0 / Z_total` (→ kA)
-   - Tabela de constantes: ρ a 20°C (Cu 0,018 · Al 0,028 Ω·mm²/m), reactância linear x = 0,00008 Ω/m (0,08 Ω/km), U0 = 230 V.
-   - Nota: descreve o método normativo de referência; a app usa atualmente um modelo de impedância simplificado equivalente.
-6. **Equilíbrio de Fases** — algoritmo de dispersão das cargas monofásicas por L1/L2/L3, alvo de dispersão < 10% para proteger o Neutro e evitar disparos intempestivos.
-7. **Cálculo de Tubagem** — taxa de enchimento por nº de condutores (1→53%, 2→31%, ≥3→40%); área dos condutores `A = π·(Ø/2)²`; secção interior mínima `S_int = ΣA_cabos / taxa`; escolha do tubo normalizado cujo interior `≥ S_int`; enchimento real `% = ΣA / A_tubo · 100`. Referência RTIEBT / boas práticas.
+### 2. Tópico 1/2 — Fator de carga
+
+O motor calcula `S = (P · fator) / cosφ`, com fator 1,25 para Ar Condicionado e UAC (sobredimensionamento de arranque). Adicionar:
+- Uma linha/nota no tópico "Potência Aparente" a explicar o fator de majoração de arranque (AC/UAC = 1,25; restantes = 1,0), para que o utilizador perceba porque Ib de um AC é superior ao esperado.
+
+### 3. Tópico 4 — Limite de 1,5 % na interligação
+
+O código valida o teto global de 4 % nos circuitos terminais; o limite de 1,5 % do feeder é apresentado como referência de boas práticas mas não bloqueia. Ajustar o texto para indicar que 4 % é o limite validado automaticamente e 1,5 % é o valor recomendado para a linha de interligação (indicador de cor), evitando dar a entender uma validação que não existe.
 
 ## Notas técnicas
 
-- Sem alterações de lógica nem de dados — documentação fiel às fórmulas já implementadas; o tópico Icc apresenta o método IEC 60909 pedido como referência educativa.
-- Usar apenas tokens de design existentes (`--brand-green`, `--brand-blue`, `--surface-2`, `card`, `muted-foreground`) — sem cores hardcoded.
-- A modal mantém scroll vertical (`max-h-[85vh] overflow-y-auto`).
+- Edição isolada à constante `ABOUT_TOPICS` e, se necessário, ao render `AboutBlockView` (sem mudanças de lógica).
+- Sem alterações a `engine.ts` nem `conduit.ts` — os resultados permanecem idênticos.
+- Apenas tokens de design existentes; sem cores hardcoded.
+
+## Resultado
+
+Depois desta correção, **confirmo que a app respeitará integralmente a secção "Sobre"**: cada fórmula e constante documentada corresponde exatamente ao que o motor calcula.
