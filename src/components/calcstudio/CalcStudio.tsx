@@ -545,42 +545,112 @@ function labelType(t: CircuitType) {
   } as Record<CircuitType, string>)[t];
 }
 
-const ABOUT_TOPICS: { title: string; body: string }[] = [
+type AboutBlock =
+  | { kind: "text"; text: string }
+  | { kind: "formula"; lines: { expr: string; note?: string }[] }
+  | { kind: "table"; head: string[]; rows: string[][] }
+  | { kind: "note"; text: string };
+
+type AboutTopic = { title: string; ref?: string; blocks: AboutBlock[] };
+
+const ABOUT_TOPICS: AboutTopic[] = [
   {
-    title: "Queda de Tensão (ΔU)",
-    body: "Calculada pelo método das resistências (ρ·L·I/S), somando a queda da linha de interligação e a do circuito. O limite total é 4% (Portaria 850/2015). Os indicadores mudam de cor — verde (OK), amarelo (quase a exceder) e vermelho (crítico) — para avisar antes de ultrapassar.",
+    title: "1. Potência Aparente (S)",
+    blocks: [
+      { kind: "text", text: "Mede o impacto total da carga na rede, combinando a potência ativa com a componente reativa (indutiva). É a base para o cálculo da corrente." },
+      { kind: "formula", lines: [{ expr: "S = P / cos φ", note: "[VA]" }] },
+    ],
   },
   {
-    title: "Escolha das Proteções — Coordenação In ≤ Iz (RTIEBT 433)",
-    body: "O calibre do disjuntor (In) nunca pode ser superior à capacidade do cabo (Iz). A app escolhe automaticamente o calibre normalizado ≥ Ib e a menor secção que garante Iz ≥ In e ΔU ≤ 4%. Se forçar manualmente um calibre maior que o cabo suporta, aparece erro a vermelho.",
+    title: "2. Corrente de Projeto (Ib)",
+    blocks: [
+      { kind: "text", text: "Intensidade de corrente que circulará continuamente pelos condutores em serviço normal." },
+      { kind: "formula", lines: [
+        { expr: "Ib = P / (V · cos φ)", note: "Monofásico 230 V  [A]" },
+        { expr: "Ib = P / (√3 · V · cos φ)", note: "Trifásico 400 V  [A]" },
+      ] },
+    ],
   },
   {
-    title: "Curvas de Disparo (B / C / D)",
-    body: "B — cargas resistivas sem pico de arranque. C — uso geral (tomadas, eletrodomésticos, pequenos motores). D — cargas com forte corrente de arranque (ar condicionado, UAC). A app sugere D para AC/UAC e C para os restantes.",
+    title: "3. Coordenação de Proteções (Regra de Ouro)",
+    ref: "RTIEBT 433 · IEC 60364",
+    blocks: [
+      { kind: "formula", lines: [{ expr: "Ib ≤ In ≤ Iz" }] },
+      { kind: "text", text: "O disjuntor (In) deve aguentar a carga (Ib), mas deve disparar antes de o cabo aquecer demasiado (Iz). A app escolhe automaticamente o calibre normalizado ≥ Ib e a menor secção que garante Iz ≥ In." },
+    ],
   },
   {
-    title: "Equilíbrio de Fases",
-    body: "As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada). As monofásicas são distribuídas por um algoritmo que coloca cada carga na fase menos carregada, minimizando o desequilíbrio. O indicador fica crítico acima de 15%.",
+    title: "4. Queda de Tensão (ΔU%)",
+    ref: "RTIEBT · Portaria 850/2015",
+    blocks: [
+      { kind: "formula", lines: [
+        { expr: "ΔU = 2 · ρ · L · Ib · cos φ / S", note: "Monofásico" },
+        { expr: "ΔU = √3 · ρ · L · Ib · cos φ / S", note: "Trifásico" },
+        { expr: "ΔU% = (ΔU / V) · 100", note: "Percentagem" },
+      ] },
+      { kind: "table", head: ["Resistividade ρ (70 °C)", "Valor"], rows: [
+        ["Cobre (Cu)", "0,0225 Ω·mm²/m"],
+        ["Alumínio (Al)", "0,036 Ω·mm²/m"],
+      ] },
+      { kind: "text", text: "Limites legais: máximo 4% para circuitos terminais e 1,5% para linhas de interligação (feeder). Os indicadores mudam de cor — verde (OK), amarelo (quase) e vermelho (crítico)." },
+    ],
   },
   {
-    title: "Dimensionamento de Cabos",
-    body: "Em Quadro de Distribuição (Q.E.): secções até 95 mm² e calibres até 63 A, em cobre. Em Quadro Geral (QGE): calibres até 1600 A, condutores em cobre ou alumínio (LSV/LV, LSVAV/LXAV) e, quando uma única secção não chega, o app dimensiona automaticamente vários condutores em paralelo por fase (sugerindo barramento). A secção é aumentada automaticamente quando a corrente, o Iz ou a queda de tensão o exigem.",
+    title: "5. Atenuação de Curto-Circuito (Icc)",
+    ref: "IEC 60909",
+    blocks: [
+      { kind: "text", text: "A corrente de curto-circuito no final de um circuito (Icc_final) é menor do que na origem (Icc_origem) devido à impedância adicionada pelo comprimento do cabo. Quanto mais longo e mais fino o cabo, maior a atenuação dos kA." },
+      { kind: "text", text: "Método das Impedâncias — passo a passo:" },
+      { kind: "text", text: "1) Impedância da rede a montante, a partir da Icc de origem e da tensão de fase (U0 = 230 V):" },
+      { kind: "formula", lines: [{ expr: "Z_rede = U0 / Icc_origem" }] },
+      { kind: "text", text: "2) Resistência e reactância do cabo, com base no comprimento (L em m) e secção (S em mm²):" },
+      { kind: "formula", lines: [
+        { expr: "R_cabo = (ρ · L) / S" },
+        { expr: "X_cabo = x · L" },
+      ] },
+      { kind: "table", head: ["Constante (curto-circuito)", "Valor"], rows: [
+        ["ρ Cobre (20 °C)", "0,018 Ω·mm²/m"],
+        ["ρ Alumínio (20 °C)", "0,028 Ω·mm²/m"],
+        ["Reactância linear x", "0,00008 Ω/m  (0,08 Ω/km)"],
+        ["Tensão de fase U0", "230 V"],
+      ] },
+      { kind: "text", text: "3) Impedância total no ponto de falha (soma vetorial):" },
+      { kind: "formula", lines: [{ expr: "Z_total = √[ (Z_rede + R_cabo)² + (X_cabo)² ]" }] },
+      { kind: "text", text: "4) Corrente de curto-circuito final (convertida para kA na tabela):" },
+      { kind: "formula", lines: [{ expr: "Icc_final = U0 / Z_total" }] },
+      { kind: "note", text: "Estas fórmulas descrevem o método normativo de referência (IEC 60909). A app aplica um modelo de impedância acumulada equivalente (origem + interligação + circuito) para estimar a Icc em cada ponto." },
+    ],
   },
   {
-    title: "Corrente de Curto-Circuito (Icc)",
-    body: "Estimada de forma simplificada a partir da impedância acumulada (origem + interligação + circuito). Diminui com o comprimento e aumenta com a secção, permitindo verificar se o poder de corte do disjuntor é suficiente.",
+    title: "6. Equilíbrio de Fases",
+    blocks: [
+      { kind: "text", text: "As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada). As cargas monofásicas são distribuídas por um algoritmo de dispersão que coloca cada carga na fase menos carregada (L1, L2 ou L3)." },
+      { kind: "text", text: "O objetivo é manter a dispersão ideal inferior a 10%, evitando sobrecarga no condutor de Neutro e disparos intempestivos do disjuntor geral." },
+    ],
   },
   {
-    title: "Corte Geral (Aparelhagem do Quadro)",
-    body: "Dimensionado com fator de 1,25 × Ib total. Até 100 A sugere interruptor; acima sugere fusíveis gG. É apresentado o calibre normalizado e a respetiva capacidade.",
-  },
-  {
-    title: "Tubagem Elétrica",
-    body: "Calculadora acessível pelo botão \"Tubagem\" (ou duplo-clique no logótipo). Usa a taxa máxima de enchimento (53% para 1 condutor, 31% para 2, 40% para 3 ou mais) e sugere o diâmetro nominal do tubo normalizado.",
+    title: "7. Cálculo de Tubagem",
+    ref: "RTIEBT · boas práticas",
+    blocks: [
+      { kind: "text", text: "Dimensiona o diâmetro do tubo pela taxa máxima de enchimento admissível, em função do número de condutores." },
+      { kind: "table", head: ["Nº de condutores", "Taxa de enchimento"], rows: [
+        ["1 condutor", "53%"],
+        ["2 condutores", "31%"],
+        ["3 ou mais", "40%"],
+      ] },
+      { kind: "formula", lines: [
+        { expr: "A_cabo = π · (Ø / 2)²", note: "área de cada condutor" },
+        { expr: "S_int = Σ A_cabos / taxa", note: "secção interior mínima" },
+        { expr: "Enchimento% = (Σ A_cabos / A_tubo) · 100" },
+      ] },
+      { kind: "text", text: "Escolhe-se o tubo normalizado cujo diâmetro interior garante secção ≥ S_int. Acessível pelo botão \"Tubagem\" (ou duplo-clique no logótipo)." },
+    ],
   },
   {
     title: "Exportação e Relatórios",
-    body: "CSV — lista de circuitos com todos os dados calculados. PDF — relatório do quadro ativo. PDF Cascata — diagrama geral de todos os quadros em cascata, com especificação dos cabos e dados de cada quadro.",
+    blocks: [
+      { kind: "text", text: "CSV — lista de circuitos com todos os dados calculados. PDF — relatório do quadro ativo. PDF Cascata — diagrama geral de todos os quadros em cascata, com especificação dos cabos e dados de cada quadro." },
+    ],
   },
 ];
 
