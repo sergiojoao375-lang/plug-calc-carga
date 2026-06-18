@@ -8,9 +8,45 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:electron": "vite build && electron-builder",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
+  },
+  "build": {
+    "appId": "com.plugtech.calcstudio",
+    "productName": "PLUGTECH CalcStudio Pro",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      ".output/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".output",
+        "to": ".output"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
