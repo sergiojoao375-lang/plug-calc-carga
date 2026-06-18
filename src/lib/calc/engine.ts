@@ -162,8 +162,10 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   const inBreaker = targetBreaker;
   const curve = c.curve ?? suggestCurve(c.type);
 
+  // Coordenação RTIEBT 433.1: Ib ≤ In ≤ Iz
+  if (inBreaker < ib) errors.push(`Disjuntor Subdimensionado: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A). Aumente o calibre do disjuntor.`);
   if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A). Aumente a secção/nº de condutores ou reduza o calibre.`);
-  if (inBreaker < ib) errors.push(`Calibre insuficiente: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A).`);
+  if (ib > iz) errors.push(`Cabo em Sobrecarga: Ib (${ib.toFixed(1)}A) > Iz (${iz}A). A capacidade do cabo é insuficiente — aumente a secção.`);
   if (parallel > 1) warnings.push(`Necessários ${parallel} condutores em paralelo por fase (${parallel}×${chosen} mm² ${mat}). Considere barramento como alternativa.`);
   if (!coordinated) warnings.push(`Não foi possível coordenar totalmente (Iz/ΔU) — verifique calibre, secção e nº de condutores.`);
   const totalDU = ctx.feederDeltaU + deltaU;
