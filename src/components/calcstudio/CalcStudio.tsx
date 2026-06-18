@@ -193,9 +193,8 @@ export default function CalcStudio() {
   const imb = useMemo(() => panel ? phaseImbalance(panel.circuits) : null, [panel]);
 
   // Estados de alerta (OK / quase a exceder / crítico)
-  const feederStatus: Status = ctx
-    ? (ctx.feederDeltaU >= 4 ? "critical" : ctx.feederDeltaU >= 3 ? "warn" : "ok")
-    : "ok";
+  // Feeder: limite recomendado 1,5% (crítico), laranja quando ≥ 1,2% (quase a exceder)
+  const feederStatus: Status = ctx ? classify(ctx.feederDeltaU, 1.2, 1.5) : "ok";
   const imbStatus: Status = imb
     ? (imb.pct >= 15 ? "critical" : imb.pct >= 10 ? "warn" : "ok")
     : "ok";
