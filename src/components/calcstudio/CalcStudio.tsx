@@ -354,11 +354,17 @@ export default function CalcStudio() {
                 className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"/>
             </Field>
             <Field label="Tipo de Circuito" w="160px">
-              <select value={draft.type} onChange={e => setDraft(d => ({ ...d, type: e.target.value as CircuitType }))}
+              <select value={draft.type} onChange={e => {
+                const type = e.target.value as CircuitType;
+                // UAC/AC (Ar Condicionado): cos φ típico 0.80–0.85 (motores/compressores) e Curva D automática.
+                const isAC = type === "UAC" || type === "AC";
+                setDraft(d => ({ ...d, type, cosphi: isAC ? "0.85" : d.cosphi }));
+              }}
                 className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm">
                 {CIRCUIT_TYPES.map(t => <option key={t} value={t}>{labelType(t)}</option>)}
               </select>
             </Field>
+
             {panel.panelKind === "QGE" && (
               <Field label="Material" w="120px">
                 <select value={draft.material} onChange={e => {
