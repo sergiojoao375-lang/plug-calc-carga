@@ -8,7 +8,7 @@ import {
 import { loadState, saveState, emptyProject, saveProjectFile, loadProjectFile, type AppState, type Panel, type ProjectInfo } from "@/lib/calc/storage";
 import { exportCSV, exportPDF, exportCascadePDF } from "@/lib/calc/export";
 import { ConduitCalculator } from "./ConduitCalculator";
-import { statusColors, type Status } from "./status";
+import { statusColors, classify, type Status } from "./status";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const CIRCUIT_TYPES: CircuitType[] = ["Iluminacao", "Tomadas", "AC", "Termoacumulador", "PlacaCozinha", "UAC"];
@@ -193,9 +193,8 @@ export default function CalcStudio() {
   const imb = useMemo(() => panel ? phaseImbalance(panel.circuits) : null, [panel]);
 
   // Estados de alerta (OK / quase a exceder / crítico)
-  const feederStatus: Status = ctx
-    ? (ctx.feederDeltaU >= 4 ? "critical" : ctx.feederDeltaU >= 3 ? "warn" : "ok")
-    : "ok";
+  // Feeder: limite recomendado 1,5% (crítico), laranja quando ≥ 1,2% (quase a exceder)
+  const feederStatus: Status = ctx ? classify(ctx.feederDeltaU, 1.2, 1.5) : "ok";
   const imbStatus: Status = imb
     ? (imb.pct >= 15 ? "critical" : imb.pct >= 10 ? "warn" : "ok")
     : "ok";
@@ -354,11 +353,17 @@ export default function CalcStudio() {
                 className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"/>
             </Field>
             <Field label="Tipo de Circuito" w="160px">
-              <select value={draft.type} onChange={e => setDraft(d => ({ ...d, type: e.target.value as CircuitType }))}
+              <select value={draft.type} onChange={e => {
+                const type = e.target.value as CircuitType;
+                // UAC/AC (Ar Condicionado): cos φ típico 0.80–0.85 (motores/compressores) e Curva D automática.
+                const isAC = type === "UAC" || type === "AC";
+                setDraft(d => ({ ...d, type, cosphi: isAC ? "0.85" : d.cosphi }));
+              }}
                 className="w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm">
                 {CIRCUIT_TYPES.map(t => <option key={t} value={t}>{labelType(t)}</option>)}
               </select>
             </Field>
+
             {panel.panelKind === "QGE" && (
               <Field label="Material" w="120px">
                 <select value={draft.material} onChange={e => {
@@ -430,6 +435,15 @@ export default function CalcStudio() {
                 const hasErr = r.errors.length > 0;
                 const hasWarn = r.warnings.length > 0;
                 const sel = selectedCircuitId === c.id;
+                const totalDU = ctx!.feederDeltaU + r.deltaU;
+                // ΔU terminal: crítico > 4% (vermelho), quase a exceder ≥ 3.2% (laranja)
+                const duStatus: Status = classify(totalDU, 3.2, 4.0);
+                const duClass = duStatus === "critical" ? "bg-destructive/30 text-destructive font-semibold"
+                  : duStatus === "warn" ? "bg-warning/30 text-warning font-semibold" : "";
+                // In: vermelho se subdimensionado (In < Ib) ou descoordenado (In > Iz)
+                const inUnder = r.in < r.ib || r.in > r.iz;
+                // Iz: vermelho se cabo em sobrecarga (Ib > Iz)
+                const izOver = r.ib > r.iz;
                 return (
                   <tr key={c.id}
                       onClick={() => editCircuit(c)}
@@ -441,11 +455,11 @@ export default function CalcStudio() {
                     <td className="px-2 py-1.5">{c.power.toFixed(0)}</td>
                     <td className="px-2 py-1.5">{r.s.toFixed(0)}</td>
                     <td className="px-2 py-1.5">{r.ib.toFixed(2)}</td>
-                    <td className={`px-2 py-1.5 ${hasErr ? "bg-destructive/30 text-destructive-foreground" : ""}`}>{r.in}</td>
+                    <td className={`px-2 py-1.5 ${inUnder ? "bg-destructive/30 text-destructive font-semibold" : ""}`} title={inUnder ? "Disjuntor subdimensionado / descoordenado (Ib ≤ In ≤ Iz)" : undefined}>{r.in}</td>
                     <td className="px-2 py-1.5">{r.curve}</td>
                     <td className="px-2 py-1.5">{r.parallel > 1 ? `${r.parallel}×` : ""}{r.section} mm²{c.material === "Al" ? " Al" : ""}</td>
-                    <td className="px-2 py-1.5">{r.iz}</td>
-                    <td className={`px-2 py-1.5 ${(ctx!.feederDeltaU + r.deltaU) > 4 ? "bg-warning/30" : ""}`}>{(ctx!.feederDeltaU + r.deltaU).toFixed(2)}</td>
+                    <td className={`px-2 py-1.5 ${izOver ? "bg-destructive/30 text-destructive font-semibold" : ""}`} title={izOver ? "Cabo em sobrecarga (Ib > Iz)" : undefined}>{r.iz}</td>
+                    <td className={`px-2 py-1.5 ${duClass}`} title={`ΔU total ${totalDU.toFixed(2)}% (limite 4%)`}>{totalDU.toFixed(2)}</td>
                     <td className="px-2 py-1.5">{r.iccTerm.toFixed(2)}</td>
                     <td className="px-2 py-1.5">{r.modules}</td>
                     <td className="px-2 py-1.5">
@@ -456,6 +470,7 @@ export default function CalcStudio() {
                   </tr>
                 );
               })}
+
             </tbody>
           </table>
         </section>
