@@ -8,7 +8,7 @@ import {
 import { loadState, saveState, emptyProject, saveProjectFile, loadProjectFile, type AppState, type Panel, type ProjectInfo } from "@/lib/calc/storage";
 import { exportCSV, exportPDF, exportCascadePDF } from "@/lib/calc/export";
 import { ConduitCalculator } from "./ConduitCalculator";
-import { statusColors, type Status } from "./status";
+import { statusColors, classify, type Status } from "./status";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const CIRCUIT_TYPES: CircuitType[] = ["Iluminacao", "Tomadas", "AC", "Termoacumulador", "PlacaCozinha", "UAC"];
