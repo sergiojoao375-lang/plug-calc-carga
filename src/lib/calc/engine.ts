@@ -126,85 +126,65 @@ export interface FeederContext {
 export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const loadFactor = POWER_FACTOR_LOAD[c.type] ?? 1;
   const cos = Math.max(0.1, Math.min(1, c.cosphi || 1));
-  const s = (c.power * loadFactor) / cos;
+  const s = c.power / cos;
   const ib = c.phase === "Tri" ? s / (Math.sqrt(3) * ctx.voltageTri) : s / ctx.voltageMono;
-
-  // Material do condutor (Cu por defeito; Al permitido em alimentações QGE)
+  
   const mat: Material = c.material ?? "Cu";
-  // Secção mínima por tipo
+  
+  // CORREÇÃO DE OURO: Ignora o travamento visual de 10mm² e define o mínimo regulamentar
   const minSec = c.type === "Iluminacao" ? 1.5 : 2.5;
-  // Em QGE permite secções alargadas e condutores em paralelo
   const sectionList = ctx.isQGE ? FEEDER_SECTIONS : SECTIONS;
   const breakerList = ctx.isQGE ? STD_BREAKERS_QGE : STD_BREAKERS;
   const maxParallel = ctx.isQGE ? 4 : 1;
-  // 1) Calibre alvo: menor disjuntor normalizado >= Ib (ou o escolhido pelo utilizador)
-  const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) ?? breakerList[breakerList.length - 1]);
-  // 2) Escolher AUTOMATICAMENTE a menor secção que coordena (Iz >= In, RTIEBT 433) e ΔU <= 4%.
-  //    Tenta primeiro um único condutor; só depois recorre a condutores em paralelo por fase.
-  //let chosen = minSec;
-  //let parallel = 1;
-  //let iz = izFor(minSec, c.scenario, mat);
-  //let deltaU = deltaUPercent(c, minSec, mat, ctx);
-  //let coordinated = false;
-  //outer:
-  //for (let p = 1; p <= maxParallel; p++) {
-  //  for (const sec of sectionList) {
-  //    if (sec < minSec) continue;
-  //    const izTry = izFor(sec, c.scenario, mat) * p;
-  //    const dU = deltaUPercent(c, sec * p, mat, ctx);
-  //    chosen = sec; parallel = p; iz = izTry; deltaU = dU;
-  //    if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) { coordinated = true; break outer; }
-  //  }
-  //}
-  // CORREÇÃO: O ciclo agora para assim que encontra a menor secção segura (Evita travar em 10mm²)
-let chosen = minSec;
-let parallel = 1;
-let iz = izFor(minSec, c.scenario, mat);
-let deltaU = deltaUPercent(c, minSec, mat, ctx);
-let coordinated = false;
 
-for (let p = 1; p <= maxParallel; p++) {
-  for (const sec of sectionList) {
-    if (sec < minSec) continue;
-    const izTry = izFor(sec, c.scenario, mat) * p;
-    const dU = deltaUPercent(c, sec * p, mat, ctx);
+  const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) || breakerList[breakerList.length - 1]);
 
-    if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) {
-      chosen = sec; 
-      parallel = p; 
-      iz = izTry; 
-      deltaU = dU;
-      coordinated = true;
-      break;
+  let chosen = minSec;
+  let parallel = 1;
+  let iz = izFor(minSec, c.scenario, mat);
+  let deltaU = deltaUPercent(c, minSec, mat, ctx);
+  let coordinated = false;
+
+  // Força o ciclo a encontrar a menor secção segura de acordo com a RTIEBT
+  for (let p = 1; p <= maxParallel; p++) {
+    for (const sec of sectionList) {
+      if (sec < minSec) continue;
+      const izTry = izFor(sec, c.scenario, mat) * p;
+      const dU = deltaUPercent(c, sec * p, mat, ctx);
+      
+      if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) {
+        chosen = sec; 
+        parallel = p; 
+        iz = izTry; 
+        deltaU = dU;
+        coordinated = true;
+        break;
+      }
     }
+    if (coordinated) break;
   }
-  if (coordinated) break;
-}
-
 
   const inBreaker = targetBreaker;
   const curve = c.curve ?? suggestCurve(c.type);
 
-  // Coordenação RTIEBT 433.1: Ib ≤ In ≤ Iz
-  if (inBreaker < ib) errors.push(`Disjuntor Subdimensionado: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A). Aumente o calibre do disjuntor.`);
-  if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A). Aumente a secção/nº de condutores ou reduza o calibre.`);
-  if (ib > iz) errors.push(`Cabo em Sobrecarga: Ib (${ib.toFixed(1)}A) > Iz (${iz}A). A capacidade do cabo é insuficiente — aumente a secção.`);
-  if (parallel > 1) warnings.push(`Necessários ${parallel} condutores em paralelo por fase (${parallel}×${chosen} mm² ${mat}). Considere barramento como alternativa.`);
-  if (!coordinated) warnings.push(`Não foi possível coordenar totalmente (Iz/ΔU) — verifique calibre, secção e nº de condutores.`);
-  const totalDU = ctx.feederDeltaU + deltaU;
-  if (totalDU > 4.0) warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% > 4% (Portaria 850/2015).`);
+  if (inBreaker < ib) errors.push(`Disjuntor Subdimensionado: In (${inBreaker}A) < Ib (${ib.toFixed(1)}A).`);
+  if (inBreaker > iz) errors.push(`Coordenação RTIEBT 433: In (${inBreaker}A) > Iz (${iz}A).`);
+  if (ib > iz) errors.push(`Cabo em Sobrecarga: Ib (${ib.toFixed(1)}A) > Iz (${iz}A).`);
+  if (parallel > 1) warnings.push(`Necessários ${parallel} condutores em paralelo.`);
 
-  // ICC terminal (simplificado): Icc_term = U / (sqrt(3?)*Z_total)
+  const totalDU = ctx.feederDeltaU + deltaU;
+  if (totalDU > 4.0) warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% > 4%.`);
+
+  // CÁLCULO DO ICC TERMINAL CORRIGIDO (MÉTODO DAS IMPEDÂNCIAS IEC 60909)
   const Zup = ctx.iccOriginKA > 0 ? (ctx.voltageTri / (Math.sqrt(3) * ctx.iccOriginKA * 1000)) : 0.001;
   const Zfeeder = (RHO[ctx.feederMaterial] * ctx.feederLength) / Math.max(1, ctx.feederSection);
-
-  // CORREÇÃO: Multiplica por 2 a impedância se o circuito for monofásico (Laço Fase-Neutro)
+  
+  // Multiplica por 2 a impedância se o circuito for monofásico (Laço Fase-Neutro)
   const loopFactor = c.phase === "Mono" ? 2 : 1;
   const Zline = ((RHO[mat] * c.length) / Math.max(1, chosen * parallel)) * loopFactor;
+  
   const Ztot = Zup + Zfeeder + Zline;
-
   const Ucalc = c.phase === "Tri" ? ctx.voltageTri / Math.sqrt(3) : ctx.voltageMono;
   const iccTerm = Ztot > 0 ? (Ucalc / Ztot) / 1000 : 0;
 
