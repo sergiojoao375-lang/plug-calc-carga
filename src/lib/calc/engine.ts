@@ -143,21 +143,46 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) ?? breakerList[breakerList.length - 1]);
   // 2) Escolher AUTOMATICAMENTE a menor secção que coordena (Iz >= In, RTIEBT 433) e ΔU <= 4%.
   //    Tenta primeiro um único condutor; só depois recorre a condutores em paralelo por fase.
-  let chosen = minSec;
-  let parallel = 1;
-  let iz = izFor(minSec, c.scenario, mat);
-  let deltaU = deltaUPercent(c, minSec, mat, ctx);
-  let coordinated = false;
-  outer:
-  for (let p = 1; p <= maxParallel; p++) {
-    for (const sec of sectionList) {
-      if (sec < minSec) continue;
-      const izTry = izFor(sec, c.scenario, mat) * p;
-      const dU = deltaUPercent(c, sec * p, mat, ctx);
-      chosen = sec; parallel = p; iz = izTry; deltaU = dU;
-      if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) { coordinated = true; break outer; }
+  //let chosen = minSec;
+  //let parallel = 1;
+  //let iz = izFor(minSec, c.scenario, mat);
+  //let deltaU = deltaUPercent(c, minSec, mat, ctx);
+  //let coordinated = false;
+  //outer:
+  //for (let p = 1; p <= maxParallel; p++) {
+  //  for (const sec of sectionList) {
+  //    if (sec < minSec) continue;
+  //    const izTry = izFor(sec, c.scenario, mat) * p;
+  //    const dU = deltaUPercent(c, sec * p, mat, ctx);
+  //    chosen = sec; parallel = p; iz = izTry; deltaU = dU;
+  //    if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) { coordinated = true; break outer; }
+  //  }
+  //}
+  // CORREÇÃO: O ciclo agora para assim que encontra a menor secção segura (Evita travar em 10mm²)
+let chosen = minSec;
+let parallel = 1;
+let iz = izFor(minSec, c.scenario, mat);
+let deltaU = deltaUPercent(c, minSec, mat, ctx);
+let coordinated = false;
+
+for (let p = 1; p <= maxParallel; p++) {
+  for (const sec of sectionList) {
+    if (sec < minSec) continue;
+    const izTry = izFor(sec, c.scenario, mat) * p;
+    const dU = deltaUPercent(c, sec * p, mat, ctx);
+
+    if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) {
+      chosen = sec; 
+      parallel = p; 
+      iz = izTry; 
+      deltaU = dU;
+      coordinated = true;
+      break;
     }
   }
+  if (coordinated) break;
+}
+
 
   const inBreaker = targetBreaker;
   const curve = c.curve ?? suggestCurve(c.type);
@@ -174,8 +199,12 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   // ICC terminal (simplificado): Icc_term = U / (sqrt(3?)*Z_total)
   const Zup = ctx.iccOriginKA > 0 ? (ctx.voltageTri / (Math.sqrt(3) * ctx.iccOriginKA * 1000)) : 0.001;
   const Zfeeder = (RHO[ctx.feederMaterial] * ctx.feederLength) / Math.max(1, ctx.feederSection);
-  const Zline = (RHO[mat] * c.length) / Math.max(1, chosen * parallel);
+
+  // CORREÇÃO: Multiplica por 2 a impedância se o circuito for monofásico (Laço Fase-Neutro)
+  const loopFactor = c.phase === "Mono" ? 2 : 1;
+  const Zline = ((RHO[mat] * c.length) / Math.max(1, chosen * parallel)) * loopFactor;
   const Ztot = Zup + Zfeeder + Zline;
+
   const Ucalc = c.phase === "Tri" ? ctx.voltageTri / Math.sqrt(3) : ctx.voltageMono;
   const iccTerm = Ztot > 0 ? (Ucalc / Ztot) / 1000 : 0;
 
