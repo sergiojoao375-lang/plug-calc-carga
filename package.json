@@ -17,7 +17,11 @@
     "appId": "com.plugtech.calcstudio",
     "productName": "PLUGTECH CalcStudio Pro",
     "directories": {
-      "output": "dist"
+      "output": "dist-nova"
+    
+
+      
+
     },
     "files": [
       "electron/**/*",
@@ -131,5 +135,5 @@
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16"
   },
-  "version": "1.0.0"
+  "version": "1.0.1"
 }

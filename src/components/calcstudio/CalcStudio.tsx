@@ -37,10 +37,11 @@ interface Draft {
 }
 const emptyDraft = (): Draft => ({
   name: "", power: "", powerUnit: "W", length: "", cosphi: "0.95",
-  type: "Tomadas", cable: "H07V-K", material: "Cu", scenario: "Embutido", phase: "Mono",
+  type: "Tomadas", cable: " ", material: "Cu", scenario: "Embutido", phase: "Mono",
 });
 
 export default function CalcStudio() {
+  //localStorage.clear();
   const [state, setState] = useState<AppState>({ panels: [], activePanelId: null, project: emptyProject() });
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
