@@ -74,9 +74,19 @@ export function izFor(section: number, scenario: InstallScenario, mat: Material 
 // Calibres normalizados de aparelho de corte geral (disjuntor/interruptor) em A
 export const MAIN_DEVICE_RATINGS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1600];
 
+//export function pickMainDevice(currentA: number): number {
+//  for (const r of MAIN_DEVICE_RATINGS) {
+//    if (r >= currentA) return r;
+//  }
+//  return MAIN_DEVICE_RATINGS[MAIN_DEVICE_RATINGS.length - 1];
+//}
+// --minha--DEPOIS (CORRIGIDO COM MARGEM DE SEGURANÇA):
 export function pickMainDevice(currentA: number): number {
+  // Adiciona uma margem extra de 10% de folga para evitar disjuntores gerais no limite térmico
+  const safeCurrent = currentA * 1.1; 
+  
   for (const r of MAIN_DEVICE_RATINGS) {
-    if (r >= currentA) return r;
+    if (r >= safeCurrent) return r;
   }
   return MAIN_DEVICE_RATINGS[MAIN_DEVICE_RATINGS.length - 1];
 }
@@ -134,11 +144,14 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   
   // CORREÇÃO DE OURO: Ignora o travamento visual de 10mm² e define o mínimo regulamentar
   const minSec = c.type === "Iluminacao" ? 1.5 : 2.5;
-  const sectionList = ctx.isQGE ? FEEDER_SECTIONS : SECTIONS;
-  const breakerList = ctx.isQGE ? STD_BREAKERS_QGE : STD_BREAKERS;
+  const sectionList = SECTIONS;
+  //--minha--const breakerList = ctx.isQGE ? STD_BREAKERS_QGE : STD_BREAKERS;
+  const breakerList = STD_BREAKERS;
   const maxParallel = ctx.isQGE ? 4 : 1;
 
-  const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) || breakerList[breakerList.length - 1]);
+  const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) || 16);
+
+  //--minha--const targetBreaker = c.inBreaker ?? (breakerList.find(b => b >= ib) || breakerList[breakerList.length - 1]);
 
   let chosen = minSec;
   let parallel = 1;
@@ -190,6 +203,15 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
 
   const modules = c.phase === "Tri" ? 3 : (c.type === "AC" || c.type === "UAC" ? 2 : 1);
 
+    //--minha-- Validação normativa europeia de 6 kA (Inserido na linha 205)
+  const breakerBreakingCapacityKA = 6.0; 
+  if (ctx.iccOriginKA > breakerBreakingCapacityKA) {
+    errors.push(
+      `Poder de corte insuficiente: O Icc na origem (${ctx.iccOriginKA.toFixed(1)} kA) excede a capacidade padrão do disjuntor (${breakerBreakingCapacityKA} kA). Utilize aparelhagem de 10 kA ou superior.`
+    );
+  }
+
+
   return { s, ib, in: inBreaker, curve, section: chosen, parallel, iz, deltaU, iccTerm, modules, errors, warnings };
 }
 
@@ -223,23 +245,78 @@ export function feederDeltaU(params: {
   }
 }
 
-// Equilíbrio de fases automático (greedy: maior carga -> fase com menor soma)
-// As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada).
+// --minha--Equilíbrio de fases automático (greedy: maior carga -> fase com menor soma)
+// --minha--As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada).
+//--minha--export function balancePhases(circuits: Circuit[]): Circuit[] {
+//--minha--  const monos = circuits.filter(c => c.phase === "Mono").sort((a, b) => b.power - a.power);
+// --minha-- const triPerPhase = circuits
+// --minha--   .filter(c => c.phase === "Tri")
+//--minha--    .reduce((a, c) => a + c.power / 3, 0);
+//--minha-- const sums = { L1: triPerPhase, L2: triPerPhase, L3: triPerPhase } as Record<"L1"|"L2"|"L3", number>;
+// --minha-- const updated = [...circuits];
+//--minha--  for (const c of monos) {
+// --minha--   const phase = (Object.keys(sums) as Array<"L1"|"L2"|"L3">).reduce((a, b) => sums[a] <= sums[b] ? a : b);
+//--minha--   sums[phase] += c.power;
+// --minha--   const i = updated.findIndex(x => x.id === c.id);
+// --minha--   updated[i] = { ...updated[i], phaseAssign: phase };
+//--minha--  }
+//--minha--  return updated;
+
 export function balancePhases(circuits: Circuit[]): Circuit[] {
-  const monos = circuits.filter(c => c.phase === "Mono").sort((a, b) => b.power - a.power);
-  const triPerPhase = circuits
-    .filter(c => c.phase === "Tri")
-    .reduce((a, c) => a + c.power / 3, 0);
-  const sums = { L1: triPerPhase, L2: triPerPhase, L3: triPerPhase } as Record<"L1"|"L2"|"L3", number>;
-  const updated = [...circuits];
-  for (const c of monos) {
-    const phase = (Object.keys(sums) as Array<"L1"|"L2"|"L3">).reduce((a, b) => sums[a] <= sums[b] ? a : b);
-    sums[phase] += c.power;
-    const i = updated.findIndex(x => x.id === c.id);
-    updated[i] = { ...updated[i], phaseAssign: phase };
+  const monos = circuits.filter(c => c.phase === "Mono");
+  const tris = circuits.filter(c => c.phase === "Tri");
+  
+  // Parcela fixa que os circuitos trifásicos aplicam em cada fase (P / 3)
+  const triPerPhase = tris.reduce((a, c) => a + (c.power / 3), 0);
+  
+  let bestDistribution: Array<"L1" | "L2" | "L3"> = [];
+  let bestImbalance = Infinity;
+  
+  const phases: Array<"L1" | "L2" | "L3"> = ["L1", "L2", "L3"];
+  
+  // Função recursiva para testar todas as combinações matemáticas possíveis de fases
+  function evaluate(index: number, currentAssign: Array<"L1" | "L2" | "L3">) {
+    if (index === monos.length) {
+      const sums = { L1: triPerPhase, L2: triPerPhase, L3: triPerPhase };
+      currentAssign.forEach((phase, i) => {
+        sums[phase] += monos[i].power;
+      });
+      
+      const avg = (sums.L1 + sums.L2 + sums.L3) / 3 || 1;
+      const max = Math.max(sums.L1, sums.L2, sums.L3);
+      const min = Math.min(sums.L1, sums.L2, sums.L3);
+      const pct = ((max - min) / avg) * 100;
+      
+      if (pct < bestImbalance) {
+        bestImbalance = pct;
+        bestDistribution = [...currentAssign];
+      }
+      return;
+    }
+    
+    // Testa o circuito atual nas 3 fases para encontrar o melhor arranjo
+    for (const p of phases) {
+      currentAssign.push(p);
+      evaluate(index + 1, currentAssign);
+      currentAssign.pop();
+    }
   }
-  return updated;
+  
+  // Inicia a busca combinatória se houver circuitos monofásicos
+  if (monos.length > 0) {
+    evaluate(0, []);
+  }
+  
+  // Reconstrói a lista de circuitos aplicando a melhor combinação encontrada
+  return circuits.map(c => {
+    if (c.phase === "Tri") return c;
+    const monoIndex = monos.findIndex(m => m.id === c.id);
+    const assignedPhase = bestDistribution[monoIndex] || "L1";
+    return { ...c, phaseAssign: assignedPhase };
+  });
 }
+
+//}
 
 // Icc presumido no barramento do quadro atual (a jusante da linha de interligação)
 export function panelIccKA(panel: {

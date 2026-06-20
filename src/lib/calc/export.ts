@@ -114,10 +114,44 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   });
 
   // Resumo / corte geral
-  const totalP = panel.circuits.reduce((a, c) => a + c.power, 0);
-  const ibTot = panel.phase === "Tri"
-    ? totalP / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
-    : totalP / (panel.voltageMono * panel.cosphi);
+  //--minha--const totalP = panel.circuits.reduce((a, c) => a + c.power, 0);
+  //--minha--const ibTot = panel.phase === "Tri"
+  //--minha--  ? totalP / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
+  //--minha--  : totalP / (panel.voltageMono * panel.cosphi);
+  // CÓDIGO CORRIGIDO PARA A FASE MAIS CARREGADA NO PDF:
+const totalP = panel.circuits.reduce((a, c) => a + c.power, 0);
+
+// Criamos um acumulador para as correntes das fases
+const phaseCurrents = { L1: 0, L2: 0, L3: 0 };
+
+panel.circuits.forEach(c => {
+  // Calculamos os dados do circuito usando o motor já existente
+  const r = computeCircuit(c, {
+    iccOriginKA: panel.iccOriginKA,
+    feederMaterial: panel.feederMaterial,
+    feederSection: panel.feederSection,
+    feederLength: panel.feederLength,
+    feederDeltaU: 0, // Simplificado para a soma das correntes
+    voltageMono: panel.voltageMono,
+    voltageTri: panel.voltageTri,
+    isQGE: panel.panelKind === "QGE",
+  });
+
+  if (c.phase === "Tri") {
+    phaseCurrents.L1 += r.ib;
+    phaseCurrents.L2 += r.ib;
+    phaseCurrents.L3 += r.ib;
+  } else {
+    const phase = c.phaseAssign || "L1";
+    if (phase === "L1") phaseCurrents.L1 += r.ib;
+    if (phase === "L2") phaseCurrents.L2 += r.ib;
+    if (phase === "L3") phaseCurrents.L3 += r.ib;
+  }
+});
+
+// O ibTot do PDF passa a ser o valor real da fase mais carregada
+const ibTot = Math.max(phaseCurrents.L1, phaseCurrents.L2, phaseCurrents.L3);
+
   const cutNeed = ibTot * 1.25;
   const mainRating = pickMainDevice(cutNeed);
   const cutType = cutNeed > 100 ? "Fusíveis (gG)" : "Interruptor de Corte em Carga";

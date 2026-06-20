@@ -37,7 +37,7 @@ interface Draft {
 }
 const emptyDraft = (): Draft => ({
   name: "", power: "", powerUnit: "W", length: "", cosphi: "0.95",
-  type: "Tomadas", cable: " ", material: "Cu", scenario: "Embutido", phase: "Mono",
+  type: "Tomadas", cable: "", material: "Cu", scenario: "Embutido", phase: "Mono",
 });
 
 export default function CalcStudio() {
@@ -131,10 +131,25 @@ export default function CalcStudio() {
     setState(s => ({ ...s, panels: rem, activePanelId: rem[0]?.id ?? null }));
   }
 
+  //--minha--function doBalance() {
+  //--minha--  if (!panel) return;
+  //--minha--  setCircuits(balancePhases(panel.circuits));
+  //}
   function doBalance() {
-    if (!panel) return;
-    setCircuits(balancePhases(panel.circuits));
-  }
+  if (!panel) return;
+  
+  // 1. Executa o algoritmo de equilíbrio do motor de cálculo
+  const balancedCircuits = balancePhases(panel.circuits);
+  
+  // 2. Atualiza o estado global mapeando os painéis e injetando os circuitos equilibrados no painel ativo
+  setState(s => ({
+    ...s,
+    panels: s.panels.map(p => 
+      p.id === panel.id ? { ...p, circuits: balancedCircuits } : p
+    )
+  }));
+}
+
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -176,12 +191,36 @@ export default function CalcStudio() {
     return panel.circuits.map(c => ({ c, r: computeCircuit(c, ctx) }));
   }, [panel, ctx]);
 
-  const totals = useMemo(() => {
-    if (!panel) return { p: 0, ib: 0, cutNeed: 0, modules: 0, cut: "—", mainRating: 0 };
-    const p = panel.circuits.reduce((a, x) => a + x.power, 0);
-    const ib = panel.phase === "Tri"
-      ? p / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
-      : p / (panel.voltageMono * panel.cosphi);
+  //--minha--const totals = useMemo(() => {
+  //--minha--  if (!panel) return { p: 0, ib: 0, cutNeed: 0, modules: 0, cut: "—", mainRating: 0 };
+  //--minha--  const p = panel.circuits.reduce((a, x) => a + x.power, 0);
+  //--minha--  const ib = panel.phase === "Tri"
+  //--minha--    ? p / (Math.sqrt(3) * panel.voltageTri * panel.cosphi)
+  //--minha--    : p / (panel.voltageMono * panel.cosphi);
+  // CÓDIGO CORRIGIDO PARA A FASE MAIS CARREGADA:
+const totals = useMemo(() => {
+  if (!panel || !computed || computed.length === 0) return { p: 0, ib: 0, cutNeed: 0, modules: 0, cut: "—", mainRating: 0 };
+  const p = panel.circuits.reduce((a, x) => a + x.power, 0);
+  
+  // Criamos um acumulador para somar as correntes reais calculadas pelo motor para cada fase
+  const phaseCurrents = { L1: 0, L2: 0, L3: 0 };
+  
+  computed.forEach(({ c, r }) => {
+    if (c.phase === "Tri") {
+      phaseCurrents.L1 += r.ib;
+      phaseCurrents.L2 += r.ib;
+      phaseCurrents.L3 += r.ib;
+    } else {
+      const phase = c.phaseAssign || "L1";
+      if (phase === "L1") phaseCurrents.L1 += r.ib;
+      if (phase === "L2") phaseCurrents.L2 += r.ib;
+      if (phase === "L3") phaseCurrents.L3 += r.ib;
+    }
+  });
+
+  // O Ib do rodapé passa a ser o valor máximo da fase mais carregada
+  const ib = Math.max(phaseCurrents.L1, phaseCurrents.L2, phaseCurrents.L3);
+
     const cutNeed = ib * 1.25;
     const modules = Math.ceil((panel.circuits.reduce((a, c) => a + (c.phase === "Tri" ? 3 : 2), 4)) * 1.2);
     const mainRating = pickMainDevice(cutNeed);
@@ -245,35 +284,68 @@ export default function CalcStudio() {
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_1fr]">
               {/* Topologia vertical: Origem -> Atual */}
               <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Quadro de Origem (Montante)</div>
-                <input
-                  list="origins"
-                  value={panel.origin}
-                  onChange={e => updatePanel({ origin: e.target.value })}
-                  className="rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"
-                  placeholder="PT/QGE ou outro quadro"
-                />
-                <datalist id="origins">
-                  <option value="PT/QGE" />
-                  {state.panels.filter(p => p.id !== panel.id).map(p => <option key={p.id} value={p.name} />)}
-                </datalist>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <label>Icc origem (kA)
-                    <select value={panel.iccOriginKA}
-                      onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
-                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                      {[3, 6, 10, 15, 20, 25, 35, 36, 50, 65, 70, 100].map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </label>
-                  <label>Sistema
-                    <select value={panel.phase}
-                      onChange={e => updatePanel({ phase: e.target.value as Phase, voltageMono: 230, voltageTri: 400 })}
-                      className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                      <option value="Mono">Monofásico (230 V)</option>
-                      <option value="Tri">Trifásico (400 V)</option>
-                    </select>
-                  </label>
-                </div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground"></div>
+                              {/* BLOCO REORGANIZADO EM 2X2 */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs mt-2">
+                
+                {/* Linha 1 - Coluna 1 (Superior Esquerda) */}
+                <label className="flex flex-col">
+                  <span className="text-gray-400 font-medium">Origem da Alimentação</span>
+                  <select 
+                    value={(panel as any).supplyType ?? "Rede"} 
+                    onChange={e => updatePanel({ supplyType: e.target.value })}
+                    className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"
+                  >
+                    <option value="Rede">Rede Pública</option>
+                    <option value="PT">PT Privado</option>
+                  </select>
+                </label>
+
+                {/* Linha 1 - Coluna 2 (Superior Direita) */}
+                <label className="flex flex-col">
+                  <span className="text-gray-400 font-medium">Quadro de Origem (Montante)</span>
+                  <input
+                    type="text"
+                    list="origins"
+                    value={panel.origin ?? ""}
+                    onChange={e => updatePanel({ origin: e.target.value })}
+                    className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"
+                    placeholder="PT/QGE ou outro quadro"
+                  />
+                  <datalist id="origins">
+                    <option value="PT/QGE" />
+                    {state.panels.filter(p => p.id !== panel.id).map(p => <option key={p.id} value={p.name} />)}
+                  </datalist>
+                </label>
+
+                {/* Linha 2 - Coluna 1 (Inferior Esquerda) */}
+                <label className="flex flex-col">
+                  <span className="text-gray-400 font-medium">Icc origem (kA)</span>
+                  <select 
+                    value={panel.iccOriginKA}
+                    onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
+                    className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"
+                  >
+                    {[3, 6, 10, 15, 20, 25, 35, 36, 50, 65, 70, 100].map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </label>
+
+                {/* Linha 2 - Coluna 2 (Inferior Direita) */}
+                <label className="flex flex-col">
+                  <span className="text-gray-400 font-medium">Sistema</span>
+                  <select 
+                    value={panel.phase}
+                    onChange={e => updatePanel({ phase: e.target.value as Phase, voltageMono: 230, voltageTri: 400 })}
+                    className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"
+                  >
+                    <option value="Mono">Monofásico (230 V)</option>
+                    <option value="Tri">Trifásico (400 V)</option>
+                  </select>
+                </label>
+
+              </div>
+
+
               </div>
 
               {/* Canalização de interligação */}
@@ -312,13 +384,15 @@ export default function CalcStudio() {
                       onChange={e => updatePanel({ cosphi: +e.target.value || 0.95 })}
                       className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1" />
                   </label>
-                  <label>Tipo de Quadro
+                                    <label>Tipo de Quadro
                     <select value={panel.panelKind ?? "QE"} onChange={e => updatePanel({ panelKind: e.target.value as "QE" | "QGE" })}
                       className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1">
-                      <option value="QE">Distribuição (Q.E.)</option>
+                      <option value="QE">Q.Parcial (Q.E.)</option>
                       <option value="QGE">Quadro Geral (QGE)</option>
                     </select>
                   </label>
+                  
+
                 </div>
                 <div className="rounded-md border border-[color:var(--brand-green)]/40 bg-[color:var(--surface-2)] px-2 py-1 text-[10px] font-semibold text-[color:var(--brand-green)]">
                   Icc no barramento: {panelIccKA(panel).toFixed(1)} kA
@@ -437,8 +511,49 @@ export default function CalcStudio() {
                 const hasWarn = r.warnings.length > 0;
                 const sel = selectedCircuitId === c.id;
                 const totalDU = ctx!.feederDeltaU + r.deltaU;
+
                 // ΔU terminal: crítico > 4% (vermelho), quase a exceder ≥ 3.2% (laranja)
-                const duStatus: Status = classify(totalDU, 3.2, 4.0);
+                //--minha--const duStatus: Status = classify(totalDU, 3.2, 4.0);
+                // Define os limites dinâmicos de acordo com o Tipo de Circuito (Norma Europeia)
+                //const isLight = c.type === "Iluminacao";
+                //const limitCritical = isLight ? 3.0 : 5.0; // 3% para iluminação, 5% para tomadas/outros
+                //const limitWarn = limitCritical * 0.85;     // Alerta laranja dispara ao atingir 85% do limite máximo
+
+                //const duStatus: Status = classify(totalDU, limitWarn, limitCritical);
+                //const isLight = c.type === "Iluminacao";
+                
+                // Verifica se o quadro selecionado é um PT Privado (caso panel exista)
+                // Se a variável se chamar activePanel, mude para activePanel?.panelKind
+                //const isPT = panel?.panelKind === "PT" || panel?.panelType === "PT" || panel?.panelKind === "QGE"; 
+                //const isPT = ctx?.isQGE === false || r.deltaU !== undefined && (ctx as any)?.panelKind === "PT";
+
+
+
+                //let limitCritical = 5.0;
+                //if (isPT) {
+                //  limitCritical = isLight ? 6.0 : 8.0;
+                //} else {
+                //  limitCritical = isLight ? 3.0 : 5.0;
+                //}
+
+                //const limitWarn = isLight ? limitCritical * 0.95 : limitCritical * 0.85;
+                //const duStatus: Status = classify(totalDU, limitWarn, limitCritical);
+
+                const isLight = c.type === "Iluminacao";
+                // CORREÇÃO: Lê diretamente o novo dropdown 'supplyType' criado no topo
+                const isPT = (panel as any).supplyType === "PT";
+
+                const limitCritical = isLight ? (isPT ? 6.0 : 3.0) : (isPT ? 8.0 : 5.0);
+
+
+                //const isLight = c.type === "Iluminacao";
+                //const isPT = ctx?.isQGE === false;
+                //const limitCritical = isLight ? (isPT ? 6.0 : 3.0) : (isPT ? 8.0 : 5.0);
+                const limitWarn = isLight ? limitCritical * 0.95 : limitCritical * 0.85;
+                const duStatus: Status = classify(totalDU, limitWarn, limitCritical);
+
+
+
                 const duClass = duStatus === "critical" ? "bg-destructive/30 text-destructive font-semibold"
                   : duStatus === "warn" ? "bg-warning/30 text-warning font-semibold" : "";
                 // In: vermelho se subdimensionado (In < Ib) ou descoordenado (In > Iz)
@@ -446,7 +561,7 @@ export default function CalcStudio() {
                 // Iz: vermelho se cabo em sobrecarga (Ib > Iz)
                 const izOver = r.ib > r.iz;
                 return (
-                  <tr key={c.id}
+                                    <tr key={c.id}
                       onClick={() => editCircuit(c)}
                       className={`cursor-pointer border-b border-border/60 hover:bg-[color:var(--surface-2)] ${sel ? "bg-[color:var(--brand-blue)]/10" : ""}`}>
                     <td className="px-2 py-1.5">{i + 1}</td>
@@ -460,15 +575,15 @@ export default function CalcStudio() {
                     <td className="px-2 py-1.5">{r.curve}</td>
                     <td className="px-2 py-1.5">{r.parallel > 1 ? `${r.parallel}×` : ""}{r.section} mm²{c.material === "Al" ? " Al" : ""}</td>
                     <td className={`px-2 py-1.5 ${izOver ? "bg-destructive/30 text-destructive font-semibold" : ""}`} title={izOver ? "Cabo em sobrecarga (Ib > Iz)" : undefined}>{r.iz}</td>
-                    <td className={`px-2 py-1.5 ${duClass}`} title={`ΔU total ${totalDU.toFixed(2)}% (limite 4%)`}>{totalDU.toFixed(2)}</td>
+                    <td className={`px-2 py-1.5 ${duClass}`} title={`ΔU total ${totalDU.toFixed(2)}% (limite ${c.type === "Iluminacao" ? (isPT ? "6%" : "3%") : (isPT ? "8%" : "5%")})`}>{totalDU.toFixed(2)} %</td>
                     <td className="px-2 py-1.5">{r.iccTerm.toFixed(2)}</td>
                     <td className="px-2 py-1.5">{r.modules}</td>
                     <td className="px-2 py-1.5">
                       <button onClick={e => { e.stopPropagation(); deleteCircuit(c.id); }}
                         className="rounded border border-destructive/40 px-2 text-destructive hover:bg-destructive/10">×</button>
-                      {(hasErr || hasWarn) && <span className="ml-1" title={[...r.errors, ...r.warnings].join("\n")}>⚠</span>}
                     </td>
                   </tr>
+
                 );
               })}
 
@@ -487,7 +602,9 @@ export default function CalcStudio() {
             <KV k="Secção" v={`${selected.r.parallel > 1 ? `${selected.r.parallel}×` : ""}${selected.r.section} mm² (${selected.c.material === "Al" ? "Al" : "Cu"})`} />
             {selected.r.parallel > 1 && <KV k="Condutores/fase" v={String(selected.r.parallel)} />}
             <KV k="Iz" v={`${selected.r.iz} A`} />
-            <KV k="ΔU total" v={`${(ctx!.feederDeltaU + selected.r.deltaU).toFixed(2)} %`} />
+           
+            <KV k={`ΔU total (Máx. ${selected.c.type === "Iluminacao" ? "3%" : "5%"})`} v={`${(ctx!.feederDeltaU + selected.r.deltaU).toFixed(2)} %`} />
+
             <KV k="Icc terminal" v={`${selected.r.iccTerm.toFixed(2)} kA`} />
             <KV k="Módulos DIN" v={String(selected.r.modules)} />
             <div className="mt-3 space-y-2">
