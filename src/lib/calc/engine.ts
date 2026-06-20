@@ -160,13 +160,18 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   let coordinated = false;
 
   // Força o ciclo a encontrar a menor secção segura de acordo com a RTIEBT
+    // Força o ciclo a encontrar a menor secção segura de acordo com a RTIEBT / Norma Europeia
   for (let p = 1; p <= maxParallel; p++) {
     for (const sec of sectionList) {
       if (sec < minSec) continue;
       const izTry = izFor(sec, c.scenario, mat) * p;
       const dU = deltaUPercent(c, sec * p, mat, ctx);
       
-      if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= 4.0) {
+      // Define o limite dinâmico de queda de tensão com base no tipo de circuito
+      const isLight = c.type === "Iluminacao";
+      const limitCritical = isLight ? 3.0 : 5.0; // 3% para luz, 5% para tomadas/outros (Rede Pública)
+      
+      if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= limitCritical) {
         chosen = sec; 
         parallel = p; 
         iz = izTry; 
@@ -178,6 +183,7 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
     if (coordinated) break;
   }
 
+
   const inBreaker = targetBreaker;
   const curve = c.curve ?? suggestCurve(c.type);
 
@@ -187,7 +193,12 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   if (parallel > 1) warnings.push(`Necessários ${parallel} condutores em paralelo.`);
 
   const totalDU = ctx.feederDeltaU + deltaU;
-  if (totalDU > 4.0) warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% > 4%.`);
+  const isLight = c.type === "Iluminacao";
+  const limitCritical = isLight ? 3.0 : 5.0;
+  if (totalDU > limitCritical) {
+    warnings.push(`Queda de tensão total ${totalDU.toFixed(2)}% excede o limite de ${limitCritical}%.`);
+  }
+
 
   // CÁLCULO DO ICC TERMINAL CORRIGIDO (MÉTODO DAS IMPEDÂNCIAS IEC 60909)
   const Zup = ctx.iccOriginKA > 0 ? (ctx.voltageTri / (Math.sqrt(3) * ctx.iccOriginKA * 1000)) : 0.001;
@@ -211,8 +222,15 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
     );
   }
 
+    // Força circuitos de Placa de Cozinha a usarem no mínimo 4 mm² por razões normativas e térmicas
+  let finalSection = chosen;
+  if ((c.type === "PlacaCozinha" || c.power > 5000) && finalSection < 4.0) {
+    finalSection = 4.0;
+    iz = 27; // Ajusta a capacidade para cabo de 4mm² embutido
+  }
 
-  return { s, ib, in: inBreaker, curve, section: chosen, parallel, iz, deltaU, iccTerm, modules, errors, warnings };
+
+  return { s, ib, in: inBreaker, curve, section: finalSection, parallel, iz, deltaU, iccTerm, modules, errors, warnings };
 }
 
 export function deltaUPercent(c: Circuit, section: number, mat: Material, ctx: FeederContext): number {

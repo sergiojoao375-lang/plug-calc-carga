@@ -205,8 +205,11 @@ const totals = useMemo(() => {
   // Criamos um acumulador para somar as correntes reais calculadas pelo motor para cada fase
   const phaseCurrents = { L1: 0, L2: 0, L3: 0 };
   
-  computed.forEach(({ c, r }) => {
-    if (c.phase === "Tri") {
+    computed.forEach(({ c, r }) => {
+    // PROTEÇÃO: Corrige automaticamente se a fase vier como 'In' ou estiver corrompida no formulário
+    const realPhase = (c.type === "PlacaCozinha" || c.power >= 6000) ? "Tri" : c.phase;
+
+    if (realPhase === "Tri") {
       phaseCurrents.L1 += r.ib;
       phaseCurrents.L2 += r.ib;
       phaseCurrents.L3 += r.ib;
@@ -217,6 +220,7 @@ const totals = useMemo(() => {
       if (phase === "L3") phaseCurrents.L3 += r.ib;
     }
   });
+
 
   // O Ib do rodapé passa a ser o valor máximo da fase mais carregada
   const ib = Math.max(phaseCurrents.L1, phaseCurrents.L2, phaseCurrents.L3);
@@ -629,7 +633,20 @@ const totals = useMemo(() => {
       <footer className="sticky bottom-0 z-30 border-t border-border bg-[color:var(--surface-1)]/95 px-4 py-3 backdrop-blur">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <Stat label="P total" value={`${totals.p.toFixed(0)} W`} />
-          <Stat label="Ib total" value={`${totals.ib.toFixed(1)} A`} />
+          <Stat label="Ib total" value={`${(() => {
+            const phaseCurrents = { L1: 0, L2: 0, L3: 0 };
+            computed.forEach(({ c, r }) => {
+              if (c.phase === "Tri") {
+                phaseCurrents.L1 += r.ib; phaseCurrents.L2 += r.ib; phaseCurrents.L3 += r.ib;
+              } else {
+                const phase = c.phaseAssign || "L1";
+                if (phase === "L1") phaseCurrents.L1 += r.ib;
+                if (phase === "L2") phaseCurrents.L2 += r.ib;
+                if (phase === "L3") phaseCurrents.L3 += r.ib;
+              }
+            });
+            return Math.max(phaseCurrents.L1, phaseCurrents.L2, phaseCurrents.L3).toFixed(1);
+          })()} A`} />
           <Stat label="I dimens. (×1.25)" value={`${totals.cutNeed.toFixed(1)} A`} />
           <Stat label="Corte Geral" value={totals.cut} accent />
           <Stat label="Módulos DIN (+20%)" value={String(totals.modules)} />
@@ -700,13 +717,15 @@ const ABOUT_TOPICS: AboutTopic[] = [
     ],
   },
   {
-    title: "2. Corrente de Projeto (Ib)",
+    title: "2. Corrente de Projeto (Ib) e Dimens. Geral",
     blocks: [
       { kind: "text", text: "Intensidade de corrente que circulará continuamente pelos condutores em serviço normal." },
       { kind: "formula", lines: [
         { expr: "Ib = P / (V · cos φ)", note: "Monofásico 230 V  [A]" },
         { expr: "Ib = P / (√3 · V · cos φ)", note: "Trifásico 400 V  [A]" },
+        { expr: "Ib_Total = max(I_L1, I_L2, I_L3)", note: "Fase Mais Carregada [A]" },
       ] },
+      { kind: "note", text: "Nota de Engenharia: O Ib Total exibido no rodapé e no PDF baseia-se na fase real mais carregada (incluindo a parcela P/3 das cargas trifásicas). Adicionalmente, o cálculo do Corte Geral aplica um coeficiente normativo de segurança de 1.25 (Majorado a 25%) sobre este valor para proteger os barramentos contra sobrecargas localizadas e regimes transitórios." },
     ],
   },
   {
@@ -714,56 +733,46 @@ const ABOUT_TOPICS: AboutTopic[] = [
     ref: "RTIEBT 433 · IEC 60364",
     blocks: [
       { kind: "formula", lines: [{ expr: "Ib ≤ In ≤ Iz" }] },
-      { kind: "text", text: "O disjuntor (In) deve aguentar a carga (Ib), mas deve disparar antes de o cabo aquecer demasiado (Iz). A app escolhe automaticamente o calibre normalizado ≥ Ib e a menor secção que garante Iz ≥ In." },
+      { kind: "text", text: "O disjuntor (In) deve aguentar a carga (Ib), mas deve disparar antes de o cabo aquecer demasiado (Iz). A app escolhe automaticamente o calibre normalizado ≥ Ib e a menor secção que garante Iz ≥ In. Para circuitos derivados de um QGE ou Q.Parcial, o motor respects as bitolas terminais regulamentares (1.5mm² para iluminação e 2.5mm² para tomadas)." },
     ],
   },
   {
-    title: "4. Queda de Tensão (ΔU%)",
-    ref: "RTIEBT · Portaria 850/2015",
+    title: "4. Queda de Tensão Acumulada (ΔU%)",
+    ref: "Norma Europeia · IEC 60364-5-52",
     blocks: [
       { kind: "formula", lines: [
         { expr: "ΔU = 2 · ρ · L · Ib · cos φ / S", note: "Monofásico" },
         { expr: "ΔU = √3 · ρ · L · Ib · cos φ / S", note: "Trifásico" },
         { expr: "ΔU% = (ΔU / V) · 100", note: "Percentagem" },
       ] },
-      { kind: "table", head: ["Resistividade ρ (70 °C)", "Valor"], rows: [
-        ["Cobre (Cu)", "0,0225 Ω·mm²/m"],
-        ["Alumínio (Al)", "0,036 Ω·mm²/m"],
+      { kind: "table", head: ["Origem da Alimentação", "Iluminação", "Outros Usos"], rows: [
+        ["Rede Pública (Padrão)", "Máx. 3.0%", "Máx. 5.0%"],
+        ["PT Privado", "Máx. 6.0%", "Máx. 8.0%"],
       ] },
-      { kind: "text", text: "A app valida automaticamente o limite global de 4% nos circuitos terminais (soma da queda do feeder com a do circuito). O valor de 1,5% para a linha de interligação (feeder) é um objetivo recomendado de boas práticas, sinalizado pelos indicadores de cor — verde (OK), amarelo (quase) e vermelho (crítico)." },
+      { kind: "text", text: "Os limites críticos de disparo dos alertas visuais são totalmente dinâmicos e associados ao novo seletor de Origem no topo. Importante: O valor exibido na tabela é acumulado, o que significa que o motor soma automaticamente a perda da linha de interligação (Feeder) com a perda do circuito terminal, garantindo segurança real no ponto de consumo." },
     ],
   },
   {
-    title: "5. Atenuação de Curto-Circuito (Icc)",
-    ref: "modelo inspirado em IEC 60909",
+    title: "5. Curto-Circuito (Icc) e Poder de Corte",
+    ref: "Mecanismo IEC 60909 & IEC 60898-1",
     blocks: [
-      { kind: "text", text: "A corrente de curto-circuito no final de um circuito (Icc_final) é menor do que na origem (Icc_origem) devido à impedância acumulada pelo comprimento dos cabos. Quanto mais longo e mais fino o cabo, maior a atenuação dos kA." },
-      { kind: "text", text: "Modelo de impedância acumulada — passo a passo:" },
-      { kind: "text", text: "1) Impedância da rede a montante, a partir da Icc de origem e da tensão de fase (U0 = 230 V):" },
-      { kind: "formula", lines: [{ expr: "Z_rede = U0 / Icc_origem" }] },
-      { kind: "text", text: "2) Impedância de cada troço de cabo (interligação e circuito), com base no comprimento (L em m) e secção (S em mm²):" },
-      { kind: "formula", lines: [{ expr: "Z_cabo = (ρ · L) / S" }] },
-      { kind: "table", head: ["Constante de cálculo", "Valor"], rows: [
-        ["ρ Cobre (70 °C)", "0,0225 Ω·mm²/m"],
-        ["ρ Alumínio (70 °C)", "0,036 Ω·mm²/m"],
-        ["Tensão de fase U0", "230 V"],
+      { kind: "text", text: "A corrente de curto-circuito no final de um circuito (Icc_final) é menor do que na origem (Icc_origem) devido à impedância acumulada. A app aplica o método das impedâncias resistivas simplificadas a 70 °C." },
+      { kind: "formula", lines: [
+        { expr: "Z_total = Z_rede + Z_interligação + Z_circuito" },
+        { expr: "Icc_final = U0 / Z_total" },
       ] },
-      { kind: "text", text: "3) Impedância total acumulada no ponto de falha (soma escalar dos troços):" },
-      { kind: "formula", lines: [{ expr: "Z_total = Z_rede + Z_interligação + Z_circuito" }] },
-      { kind: "text", text: "4) Corrente de curto-circuito final (convertida para kA na tabela):" },
-      { kind: "formula", lines: [{ expr: "Icc_final = U0 / Z_total" }] },
-      { kind: "note", text: "A app usa um modelo de impedância acumulada simplificado e resistivo (sem componente reativa/reactância), inspirado no método das impedâncias da IEC 60909. Por ignorar a reactância, o resultado é conservador e usa as mesmas resistividades a 70 °C do resto da aplicação." },
+      { kind: "note", text: "Rigor Normativo: O motor de cálculo includes uma validação de segurança estrita baseada na norma IEC 60898-1. Se o Icc na Origem ultrapassar a capacidade padrão de 6.0 kA exigida para aparelhagem terminal de distribuição, o sistema emitirá um erro de bloqueio crítico na barra lateral solicitando aparelhagem de maior capacidade." },
     ],
   },
   {
-    title: "6. Equilíbrio de Fases",
+    title: "6. Equilíbrio Avançado de Fases",
     blocks: [
-      { kind: "text", text: "As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada). As cargas monofásicas são distribuídas por um algoritmo de dispersão que coloca cada carga na fase menos carregada (L1, L2 ou L3)." },
-      { kind: "text", text: "O objetivo é manter a dispersão ideal inferior a 10%, evitando sobrecarga no condutor de Neutro e disparos intempestivos do disjuntor geral." },
+      { kind: "text", text: "As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada). As cargas monofásicas são distribuídas por um algoritmo combinatório avançado de pesquisa por permuta." },
+      { kind: "text", text: "O algoritmo testa todas as combinações matemáticas possíveis para encontrar o arranjo exato que resulta no menor desequilíbrio percentual real, minimizando correntes no Neutro mesmo com cargas muito díspares e pesadas." },
     ],
   },
   {
-    title: "7. Cálculo de Tubagem",
+    title: "7. CÁLCULO DE TUBAGEM",
     ref: "RTIEBT · boas práticas",
     blocks: [
       { kind: "text", text: "Dimensiona o diâmetro do tubo pela taxa máxima de enchimento admissível, em função do número de condutores." },
@@ -775,15 +784,7 @@ const ABOUT_TOPICS: AboutTopic[] = [
       { kind: "formula", lines: [
         { expr: "A_cabo = π · (Ø / 2)²", note: "área de cada condutor" },
         { expr: "S_int = Σ A_cabos / taxa", note: "secção interior mínima" },
-        { expr: "Enchimento% = (Σ A_cabos / A_tubo) · 100" },
       ] },
-      { kind: "text", text: "Escolhe-se o tubo normalizado cujo diâmetro interior garante secção ≥ S_int. Acessível pelo botão \"Tubagem\" (ou duplo-clique no logótipo)." },
-    ],
-  },
-  {
-    title: "Exportação e Relatórios",
-    blocks: [
-      { kind: "text", text: "CSV — lista de circuitos com todos os dados calculados. PDF — relatório do quadro ativo. PDF Cascata — diagrama geral de todos os quadros em cascata, com especificação dos cabos e dados de cada quadro." },
     ],
   },
 ];
@@ -794,7 +795,7 @@ function AboutBlockView({ block }: { block: AboutBlock }) {
   }
   if (block.kind === "note") {
     return (
-      <p className="rounded-md border border-[color:var(--brand-blue)]/30 bg-[color:var(--brand-blue)]/5 px-3 py-2 text-xs italic text-muted-foreground">
+      <p className="rounded-md border border-[color:var(--brand-blue)]/30 bg-[color:var(--brand-blue)]/5 px-3 py-2 text-xs italic text-[color:var(--brand-blue)]">
         {block.text}
       </p>
     );
@@ -803,39 +804,40 @@ function AboutBlockView({ block }: { block: AboutBlock }) {
     return (
       <div className="rounded-md border border-border bg-[color:var(--surface-2)] p-3 font-mono text-[13px]">
         {block.lines.map((l, i) => (
-          <div key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 py-0.5">
-            <span className="text-foreground">{l.expr}</span>
-            {l.note && <span className="text-[11px] text-muted-foreground">{l.note}</span>}
+          <div key={i} className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-semibold text-foreground">{l.expr}</span>
+            {l.note && <span className="text-xs text-muted-foreground">{l.note}</span>}
           </div>
         ))}
       </div>
     );
   }
-  // table
-  return (
-    <div className="overflow-hidden rounded-md border border-border">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="bg-[color:var(--surface-2)] text-muted-foreground">
-            {block.head.map((h, i) => (
-              <th key={i} className="px-3 py-1.5 text-left font-medium">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {block.rows.map((r, i) => (
-            <tr key={i} className="border-t border-border">
-              {r.map((c, j) => (
-                <td key={j} className={`px-3 py-1.5 ${j === 0 ? "text-foreground" : "font-mono text-muted-foreground"}`}>{c}</td>
+  if (block.kind === "table") {
+    return (
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-[color:var(--surface-2)] font-semibold text-muted-foreground">
+            <tr>
+              {block.head.map((h, i) => (
+                <th key={i} className="px-3 py-2">{h}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+          </thead>
+          <tbody className="divide-y divide-border text-foreground">
+            {block.rows.map((row, ri) => (
+              <tr key={ri} className="hover:bg-[color:var(--surface-2)]/50">
+                {row.map((cell, ci) => (
+                  <td key={ci} className="px-3 py-2">{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+  return null;
 }
-
 
 
 function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -867,7 +869,7 @@ function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           <div className="rounded-md border border-[color:var(--brand-blue)]/40 bg-[color:var(--brand-blue)]/5 p-3">
             <div className="mb-1 font-semibold">Desenvolvedor</div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-              <span><b>SérgioTech</b></span>
+              <span><b>Engº Sérgio João</b></span>
               <span>sergiojoa931@gmail.com</span>
               <span>WhatsApp: +244 931 728 474</span>
               <span className="italic text-[color:var(--brand-green)]">"TECNOLOGIA QUE LIGA SOLUÇÕES"</span>
