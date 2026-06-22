@@ -561,7 +561,9 @@ const totals = useMemo(() => {
                 const duClass = duStatus === "critical" ? "bg-destructive/30 text-destructive font-semibold"
                   : duStatus === "warn" ? "bg-warning/30 text-warning font-semibold" : "";
                 // In: vermelho se subdimensionado (In < Ib) ou descoordenado (In > Iz)
-                const inUnder = r.in < r.ib || r.in > r.iz;
+                const isQGE = panel.panelKind === "QGE";
+                const inUnder = r.in < r.ib || r.in > r.iz || (!isQGE && r.in > 40);
+
                 // Iz: vermelho se cabo em sobrecarga (Ib > Iz)
                 const izOver = r.ib > r.iz;
                 return (
@@ -575,7 +577,11 @@ const totals = useMemo(() => {
                     <td className="px-2 py-1.5">{c.power.toFixed(0)}</td>
                     <td className="px-2 py-1.5">{r.s.toFixed(0)}</td>
                     <td className="px-2 py-1.5">{r.ib.toFixed(2)}</td>
-                    <td className={`px-2 py-1.5 ${inUnder ? "bg-destructive/30 text-destructive font-semibold" : ""}`} title={inUnder ? "Disjuntor subdimensionado / descoordenado (Ib ≤ In ≤ Iz)" : undefined}>{r.in}</td>
+                    <td className={`px-2 py-1.5 ${inUnder ? "bg-destructive/30 text-destructive font-semibold" : ""}`} 
+                        title={r.in < r.ib || r.in > r.iz ? "Disjuntor subdimensionado / descoordenado (Ib ≤ In ≤ Iz)" : (!isQGE && r.in > 40 ? "Calibre excede o limite máximo para Quadro Parcial (Máx. 40A)." : undefined)}>
+                      {r.in}
+                    </td>
+
                     <td className="px-2 py-1.5">{r.curve}</td>
                     <td className="px-2 py-1.5">{r.parallel > 1 ? `${r.parallel}×` : ""}{r.section} mm²{c.material === "Al" ? " Al" : ""}</td>
                     <td className={`px-2 py-1.5 ${izOver ? "bg-destructive/30 text-destructive font-semibold" : ""}`} title={izOver ? "Cabo em sobrecarga (Ib > Iz)" : undefined}>{r.iz}</td>

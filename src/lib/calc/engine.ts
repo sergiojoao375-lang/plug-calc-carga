@@ -35,9 +35,9 @@ export interface Circuit {
   curve?: "B" | "C" | "D";
 }
 
-export const STD_BREAKERS = [6, 10, 16, 20, 25, 32, 40, 50, 63];
+export const STD_BREAKERS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1800];
 // Calibres alargados para Quadro Geral (QGE) — até 1600 A
-export const STD_BREAKERS_QGE = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1600];
+export const STD_BREAKERS_QGE = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1800];
 
 // Tabela simplificada Iz (A) por secção (mm²) Cu — valores conservadores médios
 const IZ_CU: Record<number, Partial<Record<InstallScenario, number>>> = {
@@ -62,7 +62,7 @@ const IZ_CU: Record<number, Partial<Record<InstallScenario, number>>> = {
 const IZ_AL_FACTOR = 0.78;
 
 // Secções para circuitos terminais
-export const SECTIONS = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95];
+export const SECTIONS = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300, 400];
 // Secções para a linha de interligação (feeder) — vai bem além de 95mm²
 export const FEEDER_SECTIONS = [10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300, 400];
 
@@ -72,7 +72,7 @@ export function izFor(section: number, scenario: InstallScenario, mat: Material 
 }
 
 // Calibres normalizados de aparelho de corte geral (disjuntor/interruptor) em A
-export const MAIN_DEVICE_RATINGS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1600];
+export const MAIN_DEVICE_RATINGS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400, 630, 800, 1000, 1250, 1800, 2000, 2500, 3200];
 
 //export function pickMainDevice(currentA: number): number {
 //  for (const r of MAIN_DEVICE_RATINGS) {
@@ -167,9 +167,12 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
       const izTry = izFor(sec, c.scenario, mat) * p;
       const dU = deltaUPercent(c, sec * p, mat, ctx);
       
-      // Define o limite dinâmico de queda de tensão com base no tipo de circuito
+      // CORREÇÃO: Define o limite dinâmico cruzando o Tipo de Circuito com a Origem da Alimentação
+            // Linhas 171 e 172 atualizadas:
       const isLight = c.type === "Iluminacao";
-      const limitCritical = isLight ? 3.0 : 5.0; // 3% para luz, 5% para tomadas/outros (Rede Pública)
+      const isPT = (ctx as any).supplyType === "PT";
+      const limitCritical = isLight ? (isPT ? 6.0 : 3.0) : (isPT ? 8.0 : 5.0);
+
       
       if (izTry >= targetBreaker && (ctx.feederDeltaU + dU) <= limitCritical) {
         chosen = sec; 
@@ -223,15 +226,23 @@ export function computeCircuit(c: Circuit, ctx: FeederContext): CalcResult {
   }
 
     // Força circuitos de Placa de Cozinha a usarem no mínimo 4 mm² por razões normativas e térmicas
+    // Força circuitos de Placa de Cozinha / Cargas pesadas a começarem com no mínimo 4 mm²
   let finalSection = chosen;
   if ((c.type === "PlacaCozinha" || c.power > 5000) && finalSection < 4.0) {
     finalSection = 4.0;
-    iz = 27; // Ajusta a capacidade para cabo de 4mm² embutido
+    iz = 27; 
   }
 
+  // REGRA DE SELETIVIDADE: Trava o Q.Parcial (Q.E.) até 40A e deixa o QGE livre
+  if (!ctx.isQGE && inBreaker > 40) {
+    errors.push(
+      `Calibre incompatível: O disjuntor calculado (${inBreaker}A) excede o limite regulamentar para Quadro Parcial/Distribuição (Máx. 40A). Para potências superiores, dimensione este circuito a partir do Quadro Geral (QGE).`
+    );
+  }
 
   return { s, ib, in: inBreaker, curve, section: finalSection, parallel, iz, deltaU, iccTerm, modules, errors, warnings };
 }
+
 
 export function deltaUPercent(c: Circuit, section: number, mat: Material, ctx: FeederContext): number {
   const cos = Math.max(0.1, c.cosphi || 1);
