@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // ABA 2 — DIMENSIONAMENTO (220V)
 // ---------------------------------------------------------------------------
-// aprontar
+
 export default function AbaDimensionamento({
   cargaWatts,
   setCargaWatts,
