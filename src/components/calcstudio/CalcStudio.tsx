@@ -518,7 +518,7 @@ const totals = useMemo(() => {
 
                 // ΔU terminal: crítico > 4% (vermelho), quase a exceder ≥ 3.2% (laranja)
                 //--minha--const duStatus: Status = classify(totalDU, 3.2, 4.0);
-                // Define os limites dinâmicos de acordo com o Tipo de Circuito (Norma Europeia)
+                // Define os limites dinâmicos de acordo com o Tipo de Circuito (Norma Europeia.)
                 //const isLight = c.type === "Iluminacao";
                 //const limitCritical = isLight ? 3.0 : 5.0; // 3% para iluminação, 5% para tomadas/outros
                 //const limitWarn = limitCritical * 0.85;     // Alerta laranja dispara ao atingir 85% do limite máximo
